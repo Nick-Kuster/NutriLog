@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, Pencil, Plus, ShoppingCart, Trash2 } from 'lucide-vue-next'
 import { useMealStore } from '../stores/meals'
 import { useScheduleStore } from '../stores/schedule'
 import { useUserPreferencesStore } from '../stores/userPreferences'
@@ -143,7 +143,12 @@ async function confirmDeleteMeal() {
           <ChevronRight :size="22" />
         </button>
       </div>
-      <button class="primary-action" type="button" @click="openAddMeal"><Plus :size="18" /> Add Meal</button>
+      <div class="meals-toolbar">
+        <RouterLink class="secondary-action" :to="{ name: 'grocery', query: { week: toIsoDate(selectedWeekStart) } }">
+          <ShoppingCart :size="18" /> Grocery List
+        </RouterLink>
+        <button class="primary-action" type="button" @click="openAddMeal"><Plus :size="18" /> Add Meal</button>
+      </div>
     </header>
 
     <section class="day-lanes" aria-label="Meals for the week">

@@ -1,13 +1,14 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ChevronLeft, ChevronRight, Plus, ShoppingCart, Trash2 } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-vue-next'
 import { aggregateGroceryItems, groupGroceryItemsByCategory } from '../lib/groceryAggregation'
 import { GROCERY_CATEGORIES } from '../lib/groceryCategories'
 import { useGroceryStore } from '../stores/grocery'
 import { useMealStore } from '../stores/meals'
 import { useScheduleStore } from '../stores/schedule'
 import { useUserPreferencesStore } from '../stores/userPreferences'
+import GroceryCategoryList from './GroceryCategoryList.vue'
 
 const route = useRoute()
 const scheduleStore = useScheduleStore()
@@ -159,47 +160,6 @@ onMounted(() => {
       No meals scheduled this week yet. Schedule meals or add items above to build your list.
     </p>
 
-    <section v-else class="grocery-list" aria-label="Grocery list by category">
-      <article v-for="group in groupedCategories" :key="group.category" class="grocery-category">
-        <h2>
-          <ShoppingCart :size="18" /> {{ group.category }}
-        </h2>
-
-        <ul class="grocery-item-list">
-          <li v-for="item in group.auto" :key="item.itemKey" class="grocery-item-row">
-            <label class="check">
-              <input
-                type="checkbox"
-                :checked="groceryStore.isChecked(item.itemKey)"
-                @change="groceryStore.setChecked(item.itemKey, $event.target.checked)"
-              />
-              <span aria-hidden="true"></span>
-            </label>
-            <div class="grocery-item-main" :class="{ checked: groceryStore.isChecked(item.itemKey) }">
-              <strong>{{ item.name }}</strong>
-              <span>{{ item.quantity }}{{ item.unit ? ` ${item.unit}` : '' }} · {{ item.meals.join(', ') }}</span>
-            </div>
-          </li>
-
-          <li v-for="item in group.extra" :key="item.id" class="grocery-item-row">
-            <label class="check">
-              <input
-                type="checkbox"
-                :checked="item.isChecked"
-                @change="groceryStore.setExtraItemChecked(item.id, $event.target.checked)"
-              />
-              <span aria-hidden="true"></span>
-            </label>
-            <div class="grocery-item-main" :class="{ checked: item.isChecked }">
-              <strong>{{ item.name }}</strong>
-              <span>{{ item.quantity }}{{ item.unit ? ` ${item.unit}` : '' }} · Custom item</span>
-            </div>
-            <button class="icon-action danger-icon-button" type="button" :aria-label="`Remove ${item.name}`" @click="groceryStore.removeExtraItem(item.id)">
-              <Trash2 :size="16" />
-            </button>
-          </li>
-        </ul>
-      </article>
-    </section>
+    <GroceryCategoryList v-else :groups="groupedCategories" />
   </section>
 </template>

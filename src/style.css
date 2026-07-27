@@ -784,6 +784,10 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   align-items: center;
   gap: 12px;
 }
+.meals-toolbar {
+  display: flex;
+  gap: 10px;
+}
 .schedule-view-toggle {
   width: 180px;
 }
@@ -1234,15 +1238,41 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   border-radius: 8px;
   background: #fffdf8;
 }
-.grocery-category h2 {
+.grocery-category-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: #2d7a4f;
   font-size: 1rem;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  cursor: pointer;
+  text-align: left;
+}
+.grocery-category-toggle:hover {
+  color: #1f6a43;
+}
+.grocery-category-toggle span {
+  flex: 1;
+}
+.grocery-category-toggle em {
+  color: #6d766f;
+  font-size: 0.85rem;
+  font-style: normal;
+  font-weight: 800;
+  text-transform: none;
+}
+.grocery-category-toggle svg:last-child {
+  flex-shrink: 0;
+  color: #6d766f;
+}
+.grocery-category .grocery-item-list {
+  margin-top: 12px;
 }
 .grocery-item-list {
   display: grid;
@@ -1394,6 +1424,10 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   .export-date-fields { grid-template-columns: 1fr; max-width: none; }
   .schedule-toolbar {
     align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+  .meals-toolbar {
     flex-direction: column;
     width: 100%;
   }
