@@ -5,6 +5,7 @@ import GroceryTab from './components/GroceryTab.vue'
 import ToolsTab from './components/ToolsTab.vue'
 import SettingsTab from './components/SettingsTab.vue'
 import MealDetail from './components/MealDetail.vue'
+import AddMealScreen from './components/AddMealScreen.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -13,6 +14,14 @@ export const router = createRouter({
       path: '/',
       name: 'meals',
       component: MealsTab,
+    },
+    {
+      path: '/meals/new',
+      name: 'meal-new',
+      component: AddMealScreen,
+      props: (route) => ({
+        scheduledDate: route.query.date ?? '',
+      }),
     },
     {
       path: '/schedule',
@@ -33,6 +42,15 @@ export const router = createRouter({
       path: '/settings',
       name: 'settings',
       component: SettingsTab,
+    },
+    {
+      path: '/meals/:mealId/edit',
+      name: 'meal-edit',
+      component: AddMealScreen,
+      props: (route) => ({
+        mealId: route.params.mealId,
+        scheduledDate: route.query.date ?? '',
+      }),
     },
     {
       path: '/meals/:mealId',

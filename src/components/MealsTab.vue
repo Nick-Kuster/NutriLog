@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-vue-next
 import { useMealStore } from '../stores/meals'
 import { useScheduleStore } from '../stores/schedule'
 import { useUserPreferencesStore } from '../stores/userPreferences'
-import AddMealScreen from './AddMealScreen.vue'
 import ConfirmDeleteModal from './ConfirmDeleteModal.vue'
 
 const scheduleStore = useScheduleStore()
@@ -26,16 +25,15 @@ function toLocalDate(isoDate) {
   return new Date(year, month - 1, day)
 }
 
-function formatDate(isoDate) {
-  const [year, month, day] = isoDate.split('-')
-  return `${month}-${day}-${year}`
-}
-
 function toIsoDate(date) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function todayIsoDate() {
+  return toIsoDate(new Date())
 }
 
 function addDays(date, days) {
@@ -50,11 +48,8 @@ function startOfPlanWeek(date) {
 }
 
 function initialWeekAnchor() {
-  return new Date()
-}
-
-function dayOfWeek(isoDate) {
-  return toLocalDate(isoDate).toLocaleDateString('en-US', { weekday: 'long' })
+  const dateParam = route.query.date
+  return typeof dateParam === 'string' && dateParam ? toLocalDate(dateParam) : new Date()
 }
 
 function formatWeekRange(start, end) {
@@ -77,34 +72,31 @@ const selectedWeekEnd = computed(() => addDays(selectedWeekStart.value, 6))
 
 const weekDateRange = computed(() => formatWeekRange(selectedWeekStart.value, selectedWeekEnd.value))
 
-const scheduledMeals = computed(() => {
-  const startIsoDate = toIsoDate(selectedWeekStart.value)
-  const endIsoDate = toIsoDate(selectedWeekEnd.value)
+const weekDays = computed(() => Array.from({ length: 7 }, (_, index) => {
+  const date = addDays(selectedWeekStart.value, index)
+  const isoDate = toIsoDate(date)
 
-  return allScheduledMeals.value.filter((meal) => meal.date >= startIsoDate && meal.date <= endIsoDate)
-})
-const isAddMealOpen = computed(() => route.query.addMeal === '1')
-const editingMeal = computed(() => {
-  const editMealId = route.query.editMeal
-  if (!editMealId) return null
-
-  return allScheduledMeals.value.find((meal) => String(meal.id) === String(editMealId)) ?? null
-})
-const isMealEditorOpen = computed(() => isAddMealOpen.value || editingMeal.value)
-const mealEditorKey = computed(() => (
-  editingMeal.value ? `edit-${editingMeal.value.id}` : 'add'
-))
+  return {
+    isoDate,
+    weekday: date.toLocaleDateString('en-US', { weekday: 'short' }),
+    dayNumber: date.getDate(),
+    isToday: isoDate === todayIsoDate(),
+    meals: allScheduledMeals.value
+      .filter((meal) => meal.date === isoDate)
+      .sort((first, second) => first.name.localeCompare(second.name)),
+  }
+}))
 
 function moveWeek(days) {
   selectedWeekStart.value = addDays(selectedWeekStart.value, days)
 }
 
 function openAddMeal() {
-  router.push({ name: 'meals', query: { addMeal: '1' } })
+  router.push({ name: 'meal-new', query: { date: toIsoDate(selectedWeekStart.value) } })
 }
 
 function openEditMeal(meal) {
-  router.push({ name: 'meals', query: { editMeal: meal.id } })
+  router.push({ name: 'meal-edit', params: { mealId: meal.id }, query: { date: meal.date } })
 }
 
 function requestDeleteMeal(meal) {
@@ -134,35 +126,9 @@ async function confirmDeleteMeal() {
     isDeletingMeal.value = false
   }
 }
-
-function closeMealEditor() {
-  router.push({ name: 'meals' })
-}
-
-function handleMealSaved({ date }) {
-  selectedWeekStart.value = startOfPlanWeek(toLocalDate(date))
-}
 </script>
 
 <template>
-  <AddMealScreen
-    v-if="isMealEditorOpen"
-    :key="mealEditorKey"
-    :meal-id="editingMeal?.id"
-    :scheduled-date="editingMeal?.date || toIsoDate(selectedWeekStart)"
-    @saved="handleMealSaved"
-    @close="closeMealEditor"
-  />
-
-  <ConfirmDeleteModal
-    v-if="mealPendingDelete"
-    :meal-name="mealPendingDelete.name"
-    :is-deleting="isDeletingMeal"
-    :error="deleteMealError"
-    @cancel="cancelDeleteMeal"
-    @confirm="confirmDeleteMeal"
-  />
-
   <section class="content">
     <header class="topbar">
       <div class="week-title-row">
@@ -180,44 +146,61 @@ function handleMealSaved({ date }) {
       <button class="primary-action" type="button" @click="openAddMeal"><Plus :size="18" /> Add Meal</button>
     </header>
 
-    <section class="workouts" aria-label="Upcoming meals">
-      <p v-if="!scheduledMeals.length" class="empty-week">No meals scheduled for this week.</p>
+    <section class="day-lanes" aria-label="Meals for the week">
       <article
-        v-for="meal in scheduledMeals"
-        :key="`${meal.date}-${meal.id}`"
-        class="workout-row"
-        :class="{ completed: meal.status === 'completed' }"
+        v-for="day in weekDays"
+        :key="day.isoDate"
+        class="day-lane"
+        :class="{ today: day.isToday }"
       >
-        <label class="check">
-          <input
-            :checked="meal.status === 'completed'"
-            type="checkbox"
-            @change="mealStore.setMealCompleted(meal.id, $event.target.checked)"
-          />
-          <span aria-hidden="true"></span>
-        </label>
-        <p class="workout-date-line">
-          <strong>{{ dayOfWeek(meal.date) }}</strong>
-          <span>{{ formatDate(meal.date) }}</span>
-        </p>
-        <RouterLink
-          class="workout-main workout-link"
-          :to="{ name: 'meal', params: { mealId: meal.id } }"
-        >
-          <h2>{{ meal.name }}</h2>
-          <p>{{ meal.mealType }}</p>
-        </RouterLink>
-        <div class="workout-meta">
-          <strong>{{ meal.servings }}x</strong>
-          <span>{{ meal.calories ? `${meal.calories} cal` : meal.mealType }}</span>
-          <button class="icon-action workout-edit-button" type="button" :aria-label="`Edit ${meal.name}`" @click="openEditMeal(meal)">
-            <Pencil :size="16" />
-          </button>
-          <button class="icon-action workout-delete-button danger-icon-button" type="button" :aria-label="`Delete ${meal.name}`" @click.stop="requestDeleteMeal(meal)">
-            <Trash2 :size="16" />
-          </button>
+        <header class="day-lane-header">
+          <span>{{ day.weekday }}</span>
+          <strong>{{ day.dayNumber }}</strong>
+        </header>
+
+        <div class="day-lane-meals">
+          <article
+            v-for="meal in day.meals"
+            :key="`${meal.date}-${meal.id}`"
+            class="day-lane-meal-card"
+            :class="{ completed: meal.status === 'completed' }"
+          >
+            <div class="day-lane-meal-top">
+              <label class="check">
+                <input
+                  :checked="meal.status === 'completed'"
+                  type="checkbox"
+                  @change="mealStore.setMealCompleted(meal.id, $event.target.checked)"
+                />
+                <span aria-hidden="true"></span>
+              </label>
+              <RouterLink class="day-lane-meal-link" :to="{ name: 'meal', params: { mealId: meal.id } }">
+                <strong>{{ meal.name }}</strong>
+                <span>{{ meal.mealType }}</span>
+              </RouterLink>
+            </div>
+            <div class="day-lane-meal-actions">
+              <button class="icon-action day-lane-icon-button" type="button" :aria-label="`Edit ${meal.name}`" @click="openEditMeal(meal)">
+                <Pencil :size="14" />
+              </button>
+              <button class="icon-action day-lane-icon-button danger-icon-button" type="button" :aria-label="`Delete ${meal.name}`" @click.stop="requestDeleteMeal(meal)">
+                <Trash2 :size="14" />
+              </button>
+            </div>
+          </article>
+
+          <p v-if="!day.meals.length" class="day-lane-empty">No meals</p>
         </div>
       </article>
     </section>
+
+    <ConfirmDeleteModal
+      v-if="mealPendingDelete"
+      :meal-name="mealPendingDelete.name"
+      :is-deleting="isDeletingMeal"
+      :error="deleteMealError"
+      @cancel="cancelDeleteMeal"
+      @confirm="confirmDeleteMeal"
+    />
   </section>
 </template>

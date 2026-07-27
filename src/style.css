@@ -7,7 +7,8 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; overflow-x: hidden; }
+html { overflow-x: hidden; overscroll-behavior-x: none; }
+body { margin: 0; min-width: 320px; min-height: 100vh; overflow-x: hidden; overscroll-behavior-x: none; }
 button, input, select, textarea { font: inherit; }
 button:disabled { cursor: not-allowed; opacity: 0.45; }
 
@@ -65,6 +66,11 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   text-align: left;
 }
 .nav-item.active, .nav-item:hover { background: #1f3a2d; color: #ffffff; }
+.sign-out-button {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #1f3a2d;
+}
 
 .mobile-header { display: none; }
 
@@ -403,6 +409,124 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   grid-column: 4;
 }
 .workout-edit-button:hover { background: #e5dfd2; }
+
+.day-lanes {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+  touch-action: pan-x pan-y;
+}
+.day-lane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 420px;
+  border: 1px solid #d9d4c7;
+  border-radius: 8px;
+  background: #fffdf8;
+  overflow: hidden;
+}
+.day-lane.today {
+  border-color: #d24b2a;
+  box-shadow: inset 0 0 0 1px #d24b2a;
+}
+.day-lane-header {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border-bottom: 1px solid #e5dfd2;
+  background: #fdfbf4;
+  text-align: center;
+}
+.day-lane-header span {
+  color: #6d766f;
+  font-size: 0.7rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+.day-lane-header strong {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+.day-lane-meals {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.day-lane-meal-card {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  min-width: 0;
+  border: 1px solid #d9d4c7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+.day-lane-meal-card.completed {
+  border-color: #8fc3a3;
+  background: #edf7f0;
+}
+.day-lane-meal-card.completed .day-lane-meal-link strong {
+  color: #1f6a43;
+}
+.day-lane-meal-top {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+.day-lane-meal-top .check {
+  margin-top: 1px;
+}
+.day-lane-meal-link {
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.day-lane-meal-link strong {
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.day-lane-meal-link:hover strong {
+  color: #d24b2a;
+}
+.day-lane-meal-link span {
+  display: block;
+  margin-top: 2px;
+  color: #6d766f;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.day-lane-meal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.day-lane-icon-button {
+  width: 24px;
+  min-height: 24px;
+  color: #6d766f;
+  background: transparent;
+}
+.day-lane-icon-button:hover {
+  background: #e5dfd2;
+}
+.day-lane-empty {
+  margin: 0;
+  padding: 10px 4px;
+  color: #9aa398;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+}
 
 .workout-detail { max-width: 1120px; }
 .exercise-stats {
@@ -1128,6 +1252,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   list-style: none;
 }
 .grocery-item-row {
+  position: relative;
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
@@ -1168,6 +1293,27 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
 @media (max-width: 760px) {
   .shell { grid-template-columns: 1fr; }
   .sidebar { display: none; }
+  .day-lanes {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .day-lanes::-webkit-scrollbar {
+    display: none;
+  }
+  .day-lane {
+    flex: 0 0 100%;
+    width: 100%;
+    height: 520px;
+    scroll-snap-align: start;
+  }
+  .day-lane-meals {
+    overflow-y: auto;
+  }
   .mobile-header {
     display: flex;
     align-items: center;

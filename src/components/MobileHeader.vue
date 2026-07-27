@@ -1,30 +1,34 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { CalendarDays, FileJson, Home, Menu, Settings, ShoppingCart, X } from 'lucide-vue-next'
+import { CalendarDays, FileJson, Home, LogOut, Menu, Settings, ShoppingCart, X } from 'lucide-vue-next'
+import { useAuthStore } from '../stores/auth'
 
 defineProps({
   activeTab: { type: String, required: true },
 })
 
-const emit = defineEmits(['navigate'])
 const router = useRouter()
+const authStore = useAuthStore()
 
 const isMenuOpen = ref(false)
 
 function goHome() {
   router.push({ name: 'meals' })
-  emit('navigate')
   isMenuOpen.value = false
 }
 
 function goToRoute(name) {
   router.push({ name })
-  emit('navigate')
   isMenuOpen.value = false
 }
 
 function closeMenu() {
+  isMenuOpen.value = false
+}
+
+function signOut() {
+  authStore.signOut()
   isMenuOpen.value = false
 }
 </script>
@@ -68,6 +72,9 @@ function closeMenu() {
         </button>
         <button class="nav-item" :class="{ active: activeTab === 'tools' }" type="button" @click="goToRoute('tools')">
           <FileJson :size="18" /> Import/Export
+        </button>
+        <button v-if="authStore.isSupabaseConfigured" class="nav-item sign-out-button" type="button" :disabled="authStore.isLoading" @click="signOut">
+          <LogOut :size="18" /> Sign out
         </button>
       </nav>
     </div>

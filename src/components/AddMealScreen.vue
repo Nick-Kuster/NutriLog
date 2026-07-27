@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ArrowLeft, Check, Plus, Trash2 } from 'lucide-vue-next'
 import { GROCERY_CATEGORIES } from '../lib/groceryCategories'
 import { useMealStore } from '../stores/meals'
@@ -10,8 +11,7 @@ const props = defineProps({
   scheduledDate: { type: String, default: '' },
 })
 
-const emit = defineEmits(['close', 'saved'])
-
+const router = useRouter()
 const scheduleStore = useScheduleStore()
 const mealStore = useMealStore()
 
@@ -111,6 +111,14 @@ function mapIngredientDraft(ingredientDraft, index) {
   }
 }
 
+function goBack() {
+  if (isEditing.value) {
+    router.push({ name: 'meal', params: { mealId: props.mealId } })
+  } else {
+    router.push({ name: 'meals' })
+  }
+}
+
 async function saveMeal() {
   addMealError.value = ''
 
@@ -143,12 +151,11 @@ async function saveMeal() {
 
     if (isEditing.value) {
       await scheduleStore.updateScheduledMeal(props.scheduledDate, savedMeal.id, scheduledDate)
+      router.push({ name: 'meal', params: { mealId: savedMeal.id } })
     } else {
       await scheduleStore.scheduleMeal(scheduledDate, savedMeal.id)
+      router.push({ name: 'meals', query: { date: scheduledDate } })
     }
-
-    emit('saved', { mealId: savedMeal.id, date: scheduledDate })
-    emit('close')
   } catch (error) {
     addMealError.value = error instanceof Error ? error.message : 'Could not save meal.'
   }
@@ -158,7 +165,7 @@ async function saveMeal() {
 <template>
   <section class="content">
     <header class="detail-topbar">
-      <button class="icon-action" type="button" aria-label="Back to meals" @click="$emit('close')">
+      <button class="icon-action" type="button" aria-label="Back to meals" @click="goBack">
         <ArrowLeft :size="20" />
       </button>
       <div>

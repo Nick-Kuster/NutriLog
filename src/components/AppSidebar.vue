@@ -1,17 +1,21 @@
 <script setup>
 import { useRouter } from 'vue-router'
-import { CalendarDays, FileJson, Salad, Settings, ShoppingCart } from 'lucide-vue-next'
+import { CalendarDays, FileJson, LogOut, Salad, Settings, ShoppingCart } from 'lucide-vue-next'
+import { useAuthStore } from '../stores/auth'
 
 defineProps({
   activeTab: { type: String, required: true },
 })
 
-const emit = defineEmits(['navigate'])
 const router = useRouter()
+const authStore = useAuthStore()
 
 function goToSettings() {
   router.push({ name: 'settings' })
-  emit('navigate')
+}
+
+function signOut() {
+  authStore.signOut()
 }
 </script>
 
@@ -32,18 +36,22 @@ function goToSettings() {
     </div>
 
     <nav class="nav" aria-label="Primary">
-      <RouterLink class="nav-item" :class="{ active: activeTab === 'meals' }" :to="{ name: 'meals' }" @click="$emit('navigate')">
+      <RouterLink class="nav-item" :class="{ active: activeTab === 'meals' }" :to="{ name: 'meals' }">
         <Salad :size="18" /> Meals
       </RouterLink>
-      <RouterLink class="nav-item" :class="{ active: activeTab === 'schedule' }" :to="{ name: 'schedule' }" @click="$emit('navigate')">
+      <RouterLink class="nav-item" :class="{ active: activeTab === 'schedule' }" :to="{ name: 'schedule' }">
         <CalendarDays :size="18" /> Schedule
       </RouterLink>
-      <RouterLink class="nav-item" :class="{ active: activeTab === 'grocery' }" :to="{ name: 'grocery' }" @click="$emit('navigate')">
+      <RouterLink class="nav-item" :class="{ active: activeTab === 'grocery' }" :to="{ name: 'grocery' }">
         <ShoppingCart :size="18" /> Grocery List
       </RouterLink>
-      <RouterLink class="nav-item" :class="{ active: activeTab === 'tools' }" :to="{ name: 'tools' }" @click="$emit('navigate')">
+      <RouterLink class="nav-item" :class="{ active: activeTab === 'tools' }" :to="{ name: 'tools' }">
         <FileJson :size="18" /> Import/Export
       </RouterLink>
     </nav>
+
+    <button v-if="authStore.isSupabaseConfigured" class="nav-item sign-out-button" type="button" :disabled="authStore.isLoading" @click="signOut">
+      <LogOut :size="18" /> Sign out
+    </button>
   </aside>
 </template>

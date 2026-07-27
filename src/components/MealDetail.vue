@@ -28,7 +28,7 @@ function goBack() {
 }
 
 function editMeal() {
-  router.push({ name: 'meal', params: { mealId: props.mealId }, query: { editMeal: props.mealId } })
+  router.push({ name: 'meal-edit', params: { mealId: props.mealId }, query: { date: scheduledDate.value } })
 }
 
 async function toggleCompleted(event) {
