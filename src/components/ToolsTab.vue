@@ -1,0 +1,421 @@
+<script setup>
+import { computed, ref } from 'vue'
+import { Clipboard, Download, FileJson, LoaderCircle, Upload, X } from 'lucide-vue-next'
+import { useMealStore } from '../stores/meals'
+import { useScheduleStore } from '../stores/schedule'
+
+const scheduleStore = useScheduleStore()
+const mealStore = useMealStore()
+
+const importFileInput = ref(null)
+const importMessage = ref('')
+const isImporting = ref(false)
+const pastedImportData = ref('')
+const isPasteImportModalOpen = ref(false)
+const exportRangeMode = ref('current-month')
+const exportStartDate = ref(startOfMonthIsoDate(new Date()))
+const exportEndDate = ref(endOfMonthIsoDate(new Date()))
+
+const exportData = computed(() => ({
+  schemaVersion: 1,
+  exportedAt: new Date().toISOString(),
+  exportRange: {
+    mode: exportRangeMode.value,
+    startDate: resolvedExportRange.value.startDate,
+    endDate: resolvedExportRange.value.endDate,
+  },
+  meals: JSON.parse(JSON.stringify(filteredExportMeals.value)),
+  schedule: JSON.parse(JSON.stringify(filteredExportSchedule.value)),
+}))
+const exportJson = computed(() => formatJson(exportData.value))
+const templateJson = computed(() => formatJson(buildWeekTemplate()))
+const resolvedExportRange = computed(() => {
+  if (exportRangeMode.value === 'custom') {
+    const [startDate, endDate] = [exportStartDate.value, exportEndDate.value].sort()
+
+    return {
+      startDate,
+      endDate,
+    }
+  }
+
+  const today = new Date()
+  return {
+    startDate: startOfMonthIsoDate(today),
+    endDate: endOfMonthIsoDate(today),
+  }
+})
+const filteredExportSchedule = computed(() => {
+  const { startDate, endDate } = resolvedExportRange.value
+
+  return scheduleStore.schedule.filter((schedule) => schedule.date >= startDate && schedule.date <= endDate)
+})
+const filteredExportMeals = computed(() => {
+  const mealIds = new Set(filteredExportSchedule.value
+    .map((schedule) => schedule.mealId)
+    .filter((mealId) => mealId !== null && mealId !== undefined)
+    .map((mealId) => String(mealId)))
+
+  return mealStore.meals.filter((meal) => mealIds.has(String(meal.id)))
+})
+
+function toIsoDate(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function startOfMonthIsoDate(date) {
+  return toIsoDate(new Date(date.getFullYear(), date.getMonth(), 1))
+}
+
+function endOfMonthIsoDate(date) {
+  return toIsoDate(new Date(date.getFullYear(), date.getMonth() + 1, 0))
+}
+
+function formatJson(data) {
+  return JSON.stringify(data, null, 2)
+}
+
+function getTemplate() {
+  downloadJson(buildWeekTemplate(), 'nutrilog-week-template.json')
+}
+
+function exportMeals() {
+  const { startDate, endDate } = resolvedExportRange.value
+  downloadJson(exportData.value, `nutrilog-export-${startDate}-to-${endDate}.json`)
+}
+
+async function copyJson(jsonText, label) {
+  try {
+    await navigator.clipboard.writeText(jsonText)
+    importMessage.value = `Copied ${label}`
+  } catch {
+    const textarea = document.createElement('textarea')
+    textarea.value = jsonText
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'absolute'
+    textarea.style.left = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+    importMessage.value = `Copied ${label}`
+  }
+}
+
+function triggerImport() {
+  if (isImporting.value) return
+  importFileInput.value?.click()
+}
+
+function importMealsFromFile(event) {
+  const [file] = event.target.files ?? []
+  if (!file) return
+
+  const reader = new FileReader()
+  reader.onload = async () => {
+    try {
+      await runImport(JSON.parse(reader.result), 'Imported meals')
+    } catch (error) {
+      importMessage.value = error instanceof Error ? error.message : 'Import failed'
+    } finally {
+      event.target.value = ''
+    }
+  }
+  reader.readAsText(file)
+}
+
+async function importPastedMeals() {
+  try {
+    await runImport(JSON.parse(pastedImportData.value), 'Imported pasted data')
+    pastedImportData.value = ''
+    closePasteImportModal()
+  } catch (error) {
+    importMessage.value = error instanceof Error ? error.message : 'Import failed'
+  }
+}
+
+function openPasteImportModal() {
+  if (isImporting.value) return
+  pastedImportData.value = ''
+  isPasteImportModalOpen.value = true
+}
+
+function closePasteImportModal() {
+  if (isImporting.value) return
+  isPasteImportModalOpen.value = false
+}
+
+async function runImport(data, successMessage) {
+  isImporting.value = true
+  importMessage.value = 'Importing meals...'
+
+  try {
+    await importMealData(data)
+    importMessage.value = successMessage
+  } finally {
+    isImporting.value = false
+  }
+}
+
+async function importMealData(data) {
+  validateImportData(data)
+
+  const returnedMealIdMap = await mealStore.importMeals(data.meals)
+  const importedMealIdMap = hasMealIdMappings(returnedMealIdMap)
+    ? returnedMealIdMap
+    : hasMealIdMappings(mealStore.importedMealIdMap)
+      ? mealStore.importedMealIdMap
+      : buildImportedMealIdMap(data.meals, mealStore.meals.slice(-data.meals.length))
+
+  for (const item of data.schedule) {
+    if (item.mealId === null || item.mealId === undefined) continue
+
+    const mappedMealId = importedMealIdMap[String(item.mealId)]
+    if (!mappedMealId) {
+      throw new Error('Could not map imported meal ' + item.mealId + ' to a saved meal')
+    }
+
+    await scheduleStore.scheduleMeal(item.date, mappedMealId)
+  }
+}
+
+function hasMealIdMappings(mealIdMap) {
+  return mealIdMap && Object.keys(mealIdMap).length > 0
+}
+
+function buildImportedMealIdMap(importedMeals, savedMeals) {
+  return Object.fromEntries(importedMeals.map((meal, index) => [
+    String(meal.id),
+    savedMeals[index]?.id ?? meal.id,
+  ]))
+}
+
+function validateImportData(data) {
+  if (!data || !Array.isArray(data.meals) || !Array.isArray(data.schedule)) {
+    throw new Error('Import file must include meals and schedule arrays')
+  }
+
+  const mealIds = new Set(data.meals.map((meal) => String(meal.id)))
+  const missingMealId = data.schedule
+    .filter((item) => item.mealId !== null && item.mealId !== undefined)
+    .find((item) => !mealIds.has(String(item.mealId)))?.mealId
+
+  if (missingMealId !== undefined) {
+    throw new Error(`Schedule references meal ${missingMealId}, but that meal is not in the import file`)
+  }
+}
+
+function buildWeekTemplate() {
+  const startDate = new Date()
+  const schedule = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(startDate)
+    date.setDate(startDate.getDate() + index)
+    return { date: date.toISOString().slice(0, 10), mealId: index === 0 ? 1001 : null }
+  })
+  schedule.push({ date: schedule[0].date, mealId: 1002 })
+
+  return {
+    schemaVersion: 1,
+    llmInstructions: {
+      general: 'Generate a realistic weekly meal plan tailored to the goals, dietary preferences, calorie/macro targets, and household size the user describes. The example meals and schedule below exist only to demonstrate the required JSON shape - replace them entirely with plan-appropriate content rather than reusing their names or ingredients.',
+      mealStructure: 'A meal has: id (unique number), name, mealType ("Breakfast", "Lunch", "Dinner", "Snack", or "Meal"), servings (integer), prepMinutes, status ("planned" or "completed"), notes, optional per-serving nutrition (calories, proteinG, carbsG, fatG), and an ordered ingredients array.',
+      ingredientFields: 'Each ingredient needs a unique id, a name, a quantity (number), a unit (free text, e.g. "cup", "g", "oz", "clove" - use "" if the ingredient does not need one, like "2 eggs"), and a category used to group the grocery list. category must be one of: Produce, Protein, Dairy & Eggs, Grains & Bread, Pantry, Frozen, Condiments & Spices, Other.',
+      scheduleRules: 'schedule is an array covering every day of the plan, one entry per date (YYYY-MM-DD, chronological, no gaps), each with a mealId. A single day can have multiple schedule entries (e.g. breakfast, lunch, dinner) - repeat the date with a different mealId for each. Use mealId: null only for days intentionally left open. Every non-null mealId must match an id in the meals array, and every meal id should be referenced by at least one schedule entry.',
+      outputFormat: 'Return only the raw JSON object described by this shape - no markdown code fences, no leading or trailing commentary, and no comments inside the JSON. The response must be valid JSON that can be parsed directly by JSON.parse.',
+    },
+    meals: [
+      {
+        id: 1001,
+        name: 'Example Greek Yogurt Bowl',
+        mealType: 'Breakfast',
+        servings: 1,
+        prepMinutes: 5,
+        calories: 320,
+        proteinG: 24,
+        carbsG: 38,
+        fatG: 8,
+        status: 'planned',
+        notes: '',
+        ingredients: [
+          { id: 'greek-yogurt', name: 'Greek yogurt', quantity: 1, unit: 'cup', category: 'Dairy & Eggs' },
+          { id: 'blueberries', name: 'Blueberries', quantity: 0.5, unit: 'cup', category: 'Produce' },
+          { id: 'granola', name: 'Granola', quantity: 0.25, unit: 'cup', category: 'Pantry' },
+        ],
+      },
+      {
+        id: 1002,
+        name: 'Example Chicken Stir Fry',
+        mealType: 'Dinner',
+        servings: 4,
+        prepMinutes: 30,
+        calories: 480,
+        proteinG: 38,
+        carbsG: 42,
+        fatG: 16,
+        status: 'planned',
+        notes: 'Serve over rice.',
+        ingredients: [
+          { id: 'chicken-breast', name: 'Chicken breast', quantity: 1.5, unit: 'lb', category: 'Protein' },
+          { id: 'broccoli', name: 'Broccoli', quantity: 2, unit: 'cup', category: 'Produce' },
+          { id: 'soy-sauce', name: 'Soy sauce', quantity: 3, unit: 'tbsp', category: 'Condiments & Spices' },
+          { id: 'rice', name: 'Rice', quantity: 2, unit: 'cup', category: 'Grains & Bread' },
+        ],
+      },
+    ],
+    schedule,
+  }
+}
+
+function downloadJson(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+</script>
+
+<template>
+  <section class="content">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Data</p>
+        <h1>Import/Export</h1>
+      </div>
+    </header>
+
+    <input ref="importFileInput" class="file-input" type="file" accept="application/json,.json" @change="importMealsFromFile" />
+    <p v-if="importMessage" class="import-status">{{ importMessage }}</p>
+
+    <section class="tool-grid" aria-label="Import and export tools">
+      <article class="tool-panel data-tool-panel">
+        <div class="tool-panel-heading">
+          <FileJson :size="24" />
+          <div>
+            <h2>ChatGPT template</h2>
+            <p>Copy this JSON shape into a ChatGPT conversation and ask it to fill in a week of meals and a schedule that matches it.</p>
+          </div>
+        </div>
+
+        <div class="data-tool-actions">
+          <button class="utility-action" type="button" @click="getTemplate">
+            <Download :size="18" /> Download file
+          </button>
+          <button class="utility-action" type="button" @click="copyJson(templateJson, 'template JSON')">
+            <Clipboard :size="18" /> Copy JSON
+          </button>
+        </div>
+      </article>
+
+      <article class="tool-panel data-tool-panel">
+        <div class="tool-panel-heading">
+          <Download :size="24" />
+          <div>
+            <h2>Export data</h2>
+            <p>Save or copy meals and schedule entries for the selected date range, e.g. to paste back into ChatGPT for revisions.</p>
+          </div>
+        </div>
+
+        <div class="export-range-controls">
+          <div class="exercise-mode-toggle export-range-toggle" role="group" aria-label="Export range">
+            <button
+              type="button"
+              class="exercise-mode-button"
+              :class="{ active: exportRangeMode === 'current-month' }"
+              @click="exportRangeMode = 'current-month'"
+            >
+              Current month
+            </button>
+            <button
+              type="button"
+              class="exercise-mode-button"
+              :class="{ active: exportRangeMode === 'custom' }"
+              @click="exportRangeMode = 'custom'"
+            >
+              Date range
+            </button>
+          </div>
+
+          <div v-if="exportRangeMode === 'custom'" class="export-date-fields">
+            <label class="form-field">
+              <span>Start date</span>
+              <input v-model="exportStartDate" type="date" />
+            </label>
+            <label class="form-field">
+              <span>End date</span>
+              <input v-model="exportEndDate" type="date" />
+            </label>
+          </div>
+
+          <p class="export-range-summary">
+            Exporting {{ filteredExportMeals.length }} meals and {{ filteredExportSchedule.length }} schedule entries from {{ resolvedExportRange.startDate }} to {{ resolvedExportRange.endDate }}.
+          </p>
+        </div>
+
+        <div class="data-tool-actions">
+          <button class="utility-action" type="button" @click="exportMeals">
+            <Download :size="18" /> Download file
+          </button>
+          <button class="utility-action" type="button" @click="copyJson(exportJson, 'export JSON')">
+            <Clipboard :size="18" /> Copy JSON
+          </button>
+        </div>
+      </article>
+
+      <article class="tool-panel data-tool-panel">
+        <div class="tool-panel-heading">
+          <Upload :size="24" />
+          <div>
+            <h2>Import data</h2>
+            <p>Paste the JSON ChatGPT generated (matching the template shape) or import a downloaded file.</p>
+          </div>
+        </div>
+
+        <div class="data-tool-actions">
+          <button class="utility-action" type="button" :disabled="isImporting" @click="triggerImport">
+            <Upload :size="18" /> Choose file
+          </button>
+          <button class="utility-action" type="button" :disabled="isImporting" @click="openPasteImportModal">
+            <Clipboard :size="18" /> Paste JSON
+          </button>
+        </div>
+      </article>
+    </section>
+
+    <Teleport to="body">
+      <div v-if="isPasteImportModalOpen" class="modal-overlay" @click.self="closePasteImportModal">
+        <div class="modal-card import-modal-card" role="dialog" aria-modal="true" aria-label="Paste JSON import">
+          <header class="modal-header">
+            <h3>Paste JSON</h3>
+            <button class="icon-action" type="button" aria-label="Close" :disabled="isImporting" @click="closePasteImportModal">
+              <X :size="18" />
+            </button>
+          </header>
+
+          <label class="data-text-panel">
+            <span>NutriLog JSON</span>
+            <textarea v-model="pastedImportData" rows="12" placeholder="Paste NutriLog JSON here" :disabled="isImporting"></textarea>
+          </label>
+
+          <p v-if="isImporting" class="import-loading-status" aria-live="polite">
+            <LoaderCircle class="import-spinner" :size="18" /> Saving meals, ingredients, and schedule...
+          </p>
+
+          <footer class="modal-footer">
+            <button class="secondary-action" type="button" :disabled="isImporting" @click="closePasteImportModal">Cancel</button>
+            <button class="primary-action" type="button" :disabled="isImporting || !pastedImportData.trim()" @click="importPastedMeals">
+              <LoaderCircle v-if="isImporting" class="import-spinner" :size="18" />
+              <Upload v-else :size="18" />
+              {{ isImporting ? 'Importing...' : 'Import JSON' }}
+            </button>
+          </footer>
+        </div>
+      </div>
+    </Teleport>
+  </section>
+</template>
