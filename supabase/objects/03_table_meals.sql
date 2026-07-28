@@ -11,6 +11,7 @@ create table if not exists public.meals (
   fat_g numeric check (fat_g >= 0),
   status text not null default 'planned' check (status in ('planned', 'completed')),
   notes text not null default '',
+  instructions jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

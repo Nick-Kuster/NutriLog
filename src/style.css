@@ -431,6 +431,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   box-shadow: inset 0 0 0 1px #d24b2a;
 }
 .day-lane-header {
+  position: relative;
   display: grid;
   justify-items: center;
   gap: 2px;
@@ -465,6 +466,18 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   border: 1px solid #d9d4c7;
   border-radius: 8px;
   background: #ffffff;
+}
+.day-lane-meal-card[draggable="true"] {
+  cursor: grab;
+  user-select: none;
+}
+.day-lane-meal-card[draggable="true"]:active {
+  cursor: grabbing;
+}
+.day-lane-meal-card.selected {
+  border-color: #d24b2a;
+  box-shadow: inset 0 0 0 2px #d24b2a;
+  background: #fdf1ec;
 }
 .day-lane-meal-card.completed {
   border-color: #8fc3a3;
@@ -519,6 +532,41 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
 .day-lane-icon-button:hover {
   background: #e5dfd2;
 }
+.mobile-move-button {
+  display: none;
+}
+.move-meal-day-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 8px;
+  padding: 18px;
+}
+.move-meal-day-option {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 10px 4px;
+  border: 1px solid #d9d4c7;
+  border-radius: 8px;
+  background: #fffdf8;
+  cursor: pointer;
+}
+.move-meal-day-option span {
+  color: #6d766f;
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+.move-meal-day-option strong {
+  font-size: 1.2rem;
+}
+.move-meal-day-option:hover:not(:disabled) {
+  border-color: #d24b2a;
+}
+.move-meal-day-option:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .day-lane-empty {
   margin: 0;
   padding: 10px 4px;
@@ -564,6 +612,24 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   color: #17211c;
 }
 .exercise-list-row span:last-child { color: #6d766f; font-weight: 800; }
+
+.meal-instructions {
+  display: grid;
+  gap: 18px;
+}
+.meal-instruction-section h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+.meal-instruction-section ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 22px;
+}
+.meal-instruction-section li {
+  line-height: 1.5;
+}
 
 .modal-overlay {
   position: fixed;
@@ -657,6 +723,26 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   margin: 0 0 4px;
   font-size: 1.1rem;
 }
+.section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  margin: 0 0 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.section-toggle h2 {
+  margin: 0;
+}
+.section-toggle svg {
+  flex-shrink: 0;
+  color: #6d766f;
+}
 .form-section-hint {
   margin: 0 0 16px;
   color: #6d766f;
@@ -696,6 +782,38 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   font-weight: 800;
 }
 
+.instruction-section-builder {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+.instruction-section-draft {
+  padding: 16px;
+  border: 1px solid #d9d4c7;
+  border-radius: 8px;
+  background: #f4f1ea;
+}
+.instruction-section-draft-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.instruction-section-draft-heading {
+  flex: 1;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid #c9c2b4;
+  border-radius: 8px;
+  color: #17211c;
+  background: #fffdf8;
+  font-weight: 800;
+  font-size: 1rem;
+}
+.add-instruction-section-button {
+  border: 1px dashed #c9c2b4;
+  background: transparent;
+}
 .exercise-builder {
   display: grid;
   gap: 10px;
@@ -796,9 +914,6 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   padding: 0 12px;
   font-weight: 850;
 }
-.week-schedule-panel {
-  min-height: 744px;
-}
 .schedule-instructions {
   margin: 0 0 12px;
   color: #6d766f;
@@ -807,12 +922,6 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
 .week-schedule-viewport {
   position: relative;
   overflow: hidden;
-  min-height: 704px;
-}
-.week-schedule-board {
-  display: grid;
-  width: 100%;
-  gap: 12px;
 }
 .week-slide-next-enter-active,
 .week-slide-next-leave-active,
@@ -838,28 +947,6 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
 .week-slide-prev-leave-to {
   transform: translateX(100%);
 }
-.week-day-column {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  min-height: 96px;
-  border: 1px solid #d9d4c7;
-  border-radius: 8px;
-  background: #fffdf8;
-  overflow: hidden;
-}
-.week-day-column.today {
-  border-color: #d24b2a;
-  box-shadow: inset 0 0 0 1px #d24b2a;
-}
-.week-day-header {
-  position: relative;
-  display: grid;
-  align-content: center;
-  gap: 8px;
-  padding: 14px;
-  border-right: 1px solid #e5dfd2;
-  background: #fdfbf4;
-}
 .shopping-day-badge {
   position: absolute;
   top: 8px;
@@ -871,43 +958,6 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
 }
 .shopping-day-badge:hover {
   background: #b23c1f;
-}
-.week-day-header span {
-  color: #6d766f;
-  font-size: 0.78rem;
-  font-weight: 850;
-  text-transform: uppercase;
-}
-.week-day-header strong {
-  font-size: 1.8rem;
-  line-height: 1;
-}
-.week-workout-list {
-  display: grid;
-  align-content: start;
-  gap: 8px;
-  min-height: 94px;
-  padding: 10px;
-}
-.week-workout-card {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) 32px 32px;
-  align-items: center;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid #d9d4c7;
-  border-radius: 8px;
-  background: #f4f1ea;
-  cursor: grab;
-}
-.week-workout-card.selection-mode {
-  grid-template-columns: 22px minmax(0, 1fr);
-  cursor: pointer;
-}
-.week-workout-card.selected {
-  border-color: #d24b2a;
-  box-shadow: inset 0 0 0 2px #d24b2a;
-  background: #fdf1ec;
 }
 .bulk-select-bar {
   display: flex;
@@ -938,61 +988,9 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   color: #6d766f;
   font-weight: 800;
 }
-.week-workout-card:hover,
 .day-workout-card:hover {
   border-color: #9aa398;
   background: #f4f1ea;
-}
-.workout-preview-button,
-.workout-delete-button {
-  width: 32px;
-  min-height: 32px;
-  background: #e5dfd2;
-  cursor: pointer;
-}
-.week-workout-card:active {
-  cursor: grabbing;
-}
-.week-workout-card svg {
-  margin-top: 2px;
-  color: #6d766f;
-}
-.week-workout-main {
-  grid-column: 1 / -1;
-  min-width: 0;
-}
-.week-workout-card > svg {
-  grid-column: 1;
-  grid-row: 2;
-}
-.week-workout-card .workout-preview-button {
-  grid-column: 3;
-  grid-row: 2;
-}
-.week-workout-card .workout-delete-button {
-  grid-column: 4;
-  grid-row: 2;
-}
-.week-workout-card h2 {
-  margin: 0;
-  font-size: 0.98rem;
-  overflow-wrap: anywhere;
-}
-.week-workout-card p {
-  margin: 4px 0 0;
-  color: #6d766f;
-  font-size: 0.8rem;
-  font-weight: 750;
-}
-.week-day-empty {
-  margin: 0;
-  padding: 12px;
-  border: 1px dashed #c9c2b4;
-  border-radius: 8px;
-  color: #9aa398;
-  font-size: 0.82rem;
-  font-weight: 800;
-  text-align: left;
 }
 .schedule-layout {
   display: grid;
@@ -1361,6 +1359,9 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
 @media (max-width: 760px) {
   .shell { grid-template-columns: 1fr; }
   .sidebar { display: none; }
+  .mobile-move-button {
+    display: flex;
+  }
   .day-lanes {
     display: flex;
     gap: 0;
@@ -1476,23 +1477,6 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
     flex-direction: column;
   }
   .schedule-view-toggle { width: 100%; }
-  .week-schedule-panel { min-height: 688px; }
-  .week-schedule-viewport { min-height: 648px; }
-  .week-schedule-board {
-    margin: 0;
-    padding: 0;
-    overflow: visible;
-  }
-  .week-day-column {
-    grid-template-columns: 72px minmax(0, 1fr);
-    min-height: 88px;
-  }
-  .week-day-header {
-    padding: 12px 10px;
-  }
-  .week-day-header strong {
-    font-size: 1.45rem;
-  }
   .schedule-layout { grid-template-columns: 1fr; }
   .schedule-month-actions { width: 100%; }
   .schedule-month-actions .icon-action { flex: 1; }
@@ -1517,12 +1501,34 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacin
   .workout-preview-block li span {
     text-align: left;
   }
-  .exercise-stats, .modal-body, .form-grid, .grocery-add-form { grid-template-columns: 1fr; }
+  .modal-body, .form-grid, .grocery-add-form { grid-template-columns: 1fr; }
+  .exercise-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
   .exercise-stats > div {
     min-width: 0;
+    min-height: 0;
+    padding: 10px;
   }
   .exercise-stats span {
     overflow-wrap: anywhere;
+    font-size: 1rem;
+  }
+  .exercise-stats p {
+    font-size: 0.78rem;
+  }
+  .workout-detail {
+    display: flex;
+    flex-direction: column;
+  }
+  .meal-detail-ingredients { order: 1; }
+  .meal-detail-instructions { order: 2; }
+  .meal-detail-notes { order: 3; }
+  .meal-detail-nutrition { order: 4; }
+  .meal-detail-actions {
+    order: 5;
+    flex-direction: column;
   }
   .form-section,
   .exercise-draft-row,

@@ -43,6 +43,7 @@ function createMealDraft() {
     fatG: '',
     notes: '',
     ingredients: [createIngredientDraft()],
+    instructionSections: [createInstructionSectionDraft()],
   }
 }
 
@@ -59,6 +60,25 @@ function createMealDraftFromMeal(meal, scheduledDate) {
     fatG: meal.fatG ?? '',
     notes: meal.notes ?? '',
     ingredients: meal.ingredients?.length ? meal.ingredients.map(createIngredientDraftFromIngredient) : [createIngredientDraft()],
+    instructionSections: meal.instructions?.length
+      ? meal.instructions.map(createInstructionSectionDraftFromSection)
+      : [createInstructionSectionDraft()],
+  }
+}
+
+function createInstructionSectionDraft() {
+  return {
+    id: makeId(),
+    heading: '',
+    steps: [''],
+  }
+}
+
+function createInstructionSectionDraftFromSection(section) {
+  return {
+    id: makeId(),
+    heading: section.heading ?? '',
+    steps: section.steps?.length ? [...section.steps] : [''],
   }
 }
 
@@ -97,6 +117,41 @@ function removeIngredient(ingredientId) {
   }
 
   mealDraft.value.ingredients = mealDraft.value.ingredients.filter((ingredient) => ingredient.id !== ingredientId)
+}
+
+function addInstructionSection() {
+  mealDraft.value.instructionSections = [...mealDraft.value.instructionSections, createInstructionSectionDraft()]
+}
+
+function removeInstructionSection(sectionId) {
+  if (mealDraft.value.instructionSections.length === 1) {
+    mealDraft.value.instructionSections = [createInstructionSectionDraft()]
+    return
+  }
+
+  mealDraft.value.instructionSections = mealDraft.value.instructionSections.filter((section) => section.id !== sectionId)
+}
+
+function addInstructionStep(section) {
+  section.steps = [...section.steps, '']
+}
+
+function removeInstructionStep(section, index) {
+  if (section.steps.length === 1) {
+    section.steps = ['']
+    return
+  }
+
+  section.steps = section.steps.filter((_, stepIndex) => stepIndex !== index)
+}
+
+function mapInstructionSectionDraft(sectionDraft) {
+  const steps = sectionDraft.steps.map((step) => step.trim()).filter(Boolean)
+
+  return {
+    heading: sectionDraft.heading.trim(),
+    steps,
+  }
 }
 
 function mapIngredientDraft(ingredientDraft, index) {
@@ -140,6 +195,7 @@ async function saveMeal() {
     status: existingMeal.value?.status ?? 'planned',
     notes: draft.notes.trim(),
     ingredients: draft.ingredients.map(mapIngredientDraft),
+    instructions: draft.instructionSections.map(mapInstructionSectionDraft).filter((section) => section.steps.length),
   }
 
   try {
@@ -254,6 +310,44 @@ async function saveMeal() {
 
           <button class="secondary-action" type="button" @click="addIngredient">
             <Plus :size="16" /> Add ingredient
+          </button>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Instructions</h2>
+        <p class="form-section-hint">
+          Group steps under an optional heading, e.g. "Marinade" then "Cook" - leave a heading blank for a single unlabeled list.
+        </p>
+
+        <div class="instruction-section-builder">
+          <article v-for="(section, sectionIndex) in mealDraft.instructionSections" :key="section.id" class="instruction-section-draft">
+            <div class="instruction-section-draft-header">
+              <input v-model="section.heading" class="instruction-section-draft-heading" type="text" :placeholder="`Section ${sectionIndex + 1} heading (optional)`" />
+              <button class="icon-action" type="button" :aria-label="`Remove section ${sectionIndex + 1}`" @click="removeInstructionSection(section.id)">
+                <Trash2 :size="16" />
+              </button>
+            </div>
+
+            <div class="exercise-builder">
+              <article v-for="(step, stepIndex) in section.steps" :key="stepIndex" class="exercise-draft-row">
+                <div class="exercise-draft-main">
+                  <span class="exercise-draft-index">{{ stepIndex + 1 }}</span>
+                  <input v-model="section.steps[stepIndex]" class="exercise-draft-name" type="text" :placeholder="`Step ${stepIndex + 1}`" />
+                  <button class="icon-action" type="button" :aria-label="`Remove step ${stepIndex + 1}`" @click="removeInstructionStep(section, stepIndex)">
+                    <Trash2 :size="16" />
+                  </button>
+                </div>
+              </article>
+
+              <button class="secondary-action" type="button" @click="addInstructionStep(section)">
+                <Plus :size="16" /> Add step
+              </button>
+            </div>
+          </article>
+
+          <button class="secondary-action add-instruction-section-button" type="button" @click="addInstructionSection">
+            <Plus :size="16" /> Add section
           </button>
         </div>
       </section>

@@ -35,6 +35,14 @@ export const useAuthStore = defineStore('auth', {
           this.session = session
           this.user = session?.user ?? null
         })
+
+        if (!this.session && import.meta.env.DEV) {
+          const devEmail = import.meta.env.VITE_DEV_AUTH_EMAIL
+          const devPassword = import.meta.env.VITE_DEV_AUTH_PASSWORD
+          if (devEmail && devPassword) {
+            await this.signInWithEmail(devEmail, devPassword)
+          }
+        }
       } catch (error) {
         this.error = error instanceof Error ? error.message : 'Could not initialize auth.'
       } finally {

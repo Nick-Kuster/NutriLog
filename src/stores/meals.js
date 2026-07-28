@@ -255,6 +255,7 @@ function mapMealBaseFromRow(row) {
     fatG: row.fat_g === null || row.fat_g === undefined ? undefined : Number(row.fat_g),
     status: row.status,
     notes: row.notes ?? '',
+    instructions: Array.isArray(row.instructions) ? row.instructions : [],
   }
 }
 
@@ -282,6 +283,7 @@ function mapMealToRow(meal, userId, existingId) {
     fat_g: parseNullableNumber(meal.fatG),
     status: meal.status ?? 'planned',
     notes: meal.notes ?? '',
+    instructions: meal.instructions ?? [],
   }
 }
 

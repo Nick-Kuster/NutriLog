@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { AlertTriangle, CheckSquare, ChevronLeft, ChevronRight, Eye, GripVertical, Play, ShoppingCart, Trash2, X } from 'lucide-vue-next'
+import { AlertTriangle, ArrowRightLeft, CheckSquare, ChevronLeft, ChevronRight, Eye, GripVertical, Play, ShoppingCart, Trash2, X } from 'lucide-vue-next'
 import { useMealStore } from '../stores/meals'
 import { useScheduleStore } from '../stores/schedule'
 import { useUserPreferencesStore } from '../stores/userPreferences'
@@ -338,6 +338,25 @@ function closeMealPreview() {
   })
 }
 
+const mealPendingMove = ref(null)
+
+function requestMoveMeal(meal) {
+  mealPendingMove.value = meal
+}
+
+function cancelMoveMeal() {
+  mealPendingMove.value = null
+}
+
+function confirmMoveMeal(targetIsoDate) {
+  if (!mealPendingMove.value) return
+
+  const meal = mealPendingMove.value
+  const targetIndex = (mealsByDate.value[targetIsoDate] ?? []).length
+  scheduleStore.moveScheduledMeal(meal.date, meal.id, targetIsoDate, targetIndex)
+  mealPendingMove.value = null
+}
+
 function requestDeleteMeal(meal) {
   deleteMealError.value = ''
   mealPendingDelete.value = meal
@@ -424,20 +443,6 @@ function finishMonthSwipe(event) {
   moveMonth(deltaX < 0 ? 1 : -1)
 }
 
-function finishWeekSwipe(event) {
-  if (!swipeStart.value) return
-
-  const touch = event.changedTouches?.[0]
-  const endX = touch?.clientX ?? event.clientX
-  const endY = touch?.clientY ?? event.clientY
-  const deltaX = endX - swipeStart.value.x
-  const deltaY = endY - swipeStart.value.y
-  swipeStart.value = null
-
-  if (Math.abs(deltaX) < 50 || Math.abs(deltaX) < Math.abs(deltaY) * 1.4) return
-
-  moveWeek(deltaX < 0 ? 7 : -7)
-}
 </script>
 
 <template>
@@ -498,24 +503,20 @@ function finishWeekSwipe(event) {
       v-if="currentView === 'week'"
       class="week-schedule-panel"
       aria-label="Weekly meal schedule"
-      @pointerdown="startScheduleSwipe"
-      @pointerup="finishWeekSwipe"
-      @touchstart.passive="startScheduleSwipe"
-      @touchend.passive="finishWeekSwipe"
     >
-      <p class="schedule-instructions">Hold and drag meals to move them to another day or reorder the week.</p>
+      <p class="schedule-instructions">Hold and drag meals to move them to another day, or tap one to preview it.</p>
       <div class="week-schedule-viewport">
         <Transition :name="weekTransitionName">
-          <div :key="toIsoDate(visibleWeekStart)" class="week-schedule-board">
+          <div :key="toIsoDate(visibleWeekStart)" class="day-lanes">
             <article
               v-for="day in weekDays"
               :key="day.isoDate"
-              class="week-day-column"
+              class="day-lane"
               :class="{ today: day.isToday }"
               @dragover.prevent
               @drop="dropMeal(day)"
             >
-              <header class="week-day-header">
+              <header class="day-lane-header">
                 <span>{{ day.weekday }}</span>
                 <strong>{{ day.dayNumber }}</strong>
                 <button
@@ -529,48 +530,50 @@ function finishWeekSwipe(event) {
                 </button>
               </header>
 
-              <div class="week-workout-list">
+              <div class="day-lane-meals">
                 <article
                   v-for="(meal, index) in day.meals"
                   :key="`${meal.date}-${meal.id}`"
-                  class="week-workout-card"
-                  :class="{ 'selection-mode': isSelectionMode, selected: isMealSelected(meal) }"
+                  class="day-lane-meal-card"
+                  :class="{ selected: isMealSelected(meal) }"
                   :draggable="!isSelectionMode"
                   @dragstart="startMealDrag(meal)"
                   @dragend="finishMealDrag"
                   @dragover.prevent
                   @drop.stop="dropMeal(day, index)"
-                  @click="isSelectionMode && toggleMealSelected(meal)"
+                  @click="isSelectionMode ? toggleMealSelected(meal) : previewScheduledMeal(meal)"
                 >
-                  <label v-if="isSelectionMode" class="check" @click.stop>
-                    <input type="checkbox" :checked="isMealSelected(meal)" @change="toggleMealSelected(meal)" />
-                    <span aria-hidden="true"></span>
-                  </label>
-                  <GripVertical v-else :size="16" />
-                  <div class="week-workout-main">
-                    <h2>{{ meal.name }}</h2>
-                    <p>{{ meal.mealType }}{{ meal.calories ? ` · ${meal.calories} cal` : '' }}</p>
+                  <div class="day-lane-meal-top">
+                    <label v-if="isSelectionMode" class="check" @click.stop>
+                      <input type="checkbox" :checked="isMealSelected(meal)" @change="toggleMealSelected(meal)" />
+                      <span aria-hidden="true"></span>
+                    </label>
+                    <GripVertical v-else :size="14" />
+                    <div class="day-lane-meal-link">
+                      <strong>{{ meal.name }}</strong>
+                      <span>{{ meal.mealType }}{{ meal.calories ? ` · ${meal.calories} cal` : '' }}</span>
+                    </div>
                   </div>
-                  <template v-if="!isSelectionMode">
+                  <div v-if="!isSelectionMode" class="day-lane-meal-actions">
                     <button
-                      class="icon-action workout-preview-button"
+                      class="icon-action day-lane-icon-button mobile-move-button"
                       type="button"
-                      :aria-label="`Preview ${meal.name}`"
-                      @click.stop="previewScheduledMeal(meal)"
+                      :aria-label="`Move ${meal.name} to another day`"
+                      @click.stop="requestMoveMeal(meal)"
                     >
-                      <Eye :size="16" />
+                      <ArrowRightLeft :size="14" />
                     </button>
                     <button
-                      class="icon-action workout-delete-button danger-icon-button"
+                      class="icon-action day-lane-icon-button danger-icon-button"
                       type="button"
                       :aria-label="`Delete ${meal.name}`"
                       @click.stop="requestDeleteMeal(meal)"
                     >
-                      <Trash2 :size="16" />
+                      <Trash2 :size="14" />
                     </button>
-                  </template>
+                  </div>
                 </article>
-                <p v-if="!day.meals.length" class="week-day-empty">Drop meal here</p>
+                <p v-if="!day.meals.length" class="day-lane-empty">Drop meal here</p>
               </div>
             </article>
           </div>
@@ -662,6 +665,37 @@ function finishWeekSwipe(event) {
         </div>
       </aside>
     </div>
+
+    <Teleport to="body">
+      <div v-if="mealPendingMove" class="modal-overlay" @click.self="cancelMoveMeal">
+        <div class="modal-card move-meal-modal" role="dialog" aria-modal="true" aria-label="Move meal to another day">
+          <header class="modal-header">
+            <div>
+              <p class="eyebrow">Move meal</p>
+              <h3>{{ mealPendingMove.name }}</h3>
+            </div>
+            <button class="icon-action" type="button" aria-label="Cancel move" @click="cancelMoveMeal">
+              <X :size="18" />
+            </button>
+          </header>
+
+          <div class="move-meal-day-list">
+            <button
+              v-for="day in weekDays"
+              :key="day.isoDate"
+              type="button"
+              class="move-meal-day-option"
+              :class="{ current: day.isoDate === mealPendingMove.date }"
+              :disabled="day.isoDate === mealPendingMove.date"
+              @click="confirmMoveMeal(day.isoDate)"
+            >
+              <span>{{ day.weekday }}</span>
+              <strong>{{ day.dayNumber }}</strong>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <ConfirmDeleteModal
       v-if="mealPendingDelete"

@@ -221,8 +221,9 @@ function buildWeekTemplate() {
     schemaVersion: 1,
     llmInstructions: {
       general: 'Generate a realistic weekly meal plan tailored to the goals, dietary preferences, calorie/macro targets, and household size the user describes. The example meals and schedule below exist only to demonstrate the required JSON shape - replace them entirely with plan-appropriate content rather than reusing their names or ingredients.',
-      mealStructure: 'A meal has: id (unique number), name, mealType ("Breakfast", "Lunch", "Dinner", "Snack", or "Meal"), servings (integer), prepMinutes, status ("planned" or "completed"), notes, optional per-serving nutrition (calories, proteinG, carbsG, fatG), and an ordered ingredients array.',
+      mealStructure: 'A meal has: id (unique number), name, mealType ("Breakfast", "Lunch", "Dinner", "Snack", or "Meal"), servings (integer), prepMinutes, status ("planned" or "completed"), notes, optional per-serving nutrition (calories, proteinG, carbsG, fatG), an ordered ingredients array, and an ordered instructions array.',
       ingredientFields: 'Each ingredient needs a unique id, a name, a quantity (number), a unit (free text, e.g. "cup", "g", "oz", "clove" - use "" if the ingredient does not need one, like "2 eggs"), and a category used to group the grocery list. category must be one of: Produce, Protein, Dairy & Eggs, Grains & Bread, Pantry, Frozen, Condiments & Spices, Other.',
+      instructionFields: 'instructions is an array of sections, each with a heading (string, use "" if the recipe does not need named sections) and a steps array of strings. Every step must be a real, actionable cooking instruction (specific temperatures, times, techniques) - never a placeholder like "cook until done". Simple meals can use a single section with heading "" and a short steps list; multi-stage recipes (e.g. a sauce plus a main) should use one section per stage with a short heading like "Marinade" or "Sauce" so the steps stay grouped. Every meal should have at least one instructions section unless it is truly assembly-only (e.g. a pre-made snack) - the notes field is for general remarks, not for the actual steps.',
       scheduleRules: 'schedule is an array covering every day of the plan, one entry per date (YYYY-MM-DD, chronological, no gaps), each with a mealId. A single day can have multiple schedule entries (e.g. breakfast, lunch, dinner) - repeat the date with a different mealId for each. Use mealId: null only for days intentionally left open. Every non-null mealId must match an id in the meals array, and every meal id should be referenced by at least one schedule entry.',
       outputFormat: 'Return only the raw JSON object described by this shape - no markdown code fences, no leading or trailing commentary, and no comments inside the JSON. The response must be valid JSON that can be parsed directly by JSON.parse.',
     },
@@ -244,6 +245,16 @@ function buildWeekTemplate() {
           { id: 'blueberries', name: 'Blueberries', quantity: 0.5, unit: 'cup', category: 'Produce' },
           { id: 'granola', name: 'Granola', quantity: 0.25, unit: 'cup', category: 'Pantry' },
         ],
+        instructions: [
+          {
+            heading: '',
+            steps: [
+              'Spoon the Greek yogurt into a bowl.',
+              'Top with blueberries and granola.',
+              'Serve immediately so the granola stays crisp.',
+            ],
+          },
+        ],
       },
       {
         id: 1002,
@@ -262,6 +273,26 @@ function buildWeekTemplate() {
           { id: 'broccoli', name: 'Broccoli', quantity: 2, unit: 'cup', category: 'Produce' },
           { id: 'soy-sauce', name: 'Soy sauce', quantity: 3, unit: 'tbsp', category: 'Condiments & Spices' },
           { id: 'rice', name: 'Rice', quantity: 2, unit: 'cup', category: 'Grains & Bread' },
+        ],
+        instructions: [
+          {
+            heading: 'Prep',
+            steps: [
+              'Cut the chicken breast into 1-inch cubes and pat dry with a paper towel.',
+              'Cut the broccoli into bite-sized florets.',
+              'Cook the rice according to package directions.',
+            ],
+          },
+          {
+            heading: 'Cook',
+            steps: [
+              'Heat a large skillet or wok over high heat until shimmering.',
+              'Add the chicken in a single layer and sear 3-4 minutes per side until golden and cooked through, then remove from the pan.',
+              'Add the broccoli to the same pan and stir-fry 2-3 minutes until bright green and just tender.',
+              'Return the chicken to the pan, add the soy sauce, and toss everything together for 1 minute until evenly coated.',
+              'Serve hot over the cooked rice.',
+            ],
+          },
         ],
       },
     ],
