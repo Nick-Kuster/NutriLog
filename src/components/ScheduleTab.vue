@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChevronLeft, ChevronRight, Eye, GripVertical, Play, ShoppingCart, Trash2, X } from 'lucide-vue-next'
+import { AlertTriangle, CheckSquare, ChevronLeft, ChevronRight, Eye, GripVertical, Play, ShoppingCart, Trash2, X } from 'lucide-vue-next'
 import { useMealStore } from '../stores/meals'
 import { useScheduleStore } from '../stores/schedule'
 import { useUserPreferencesStore } from '../stores/userPreferences'
@@ -153,6 +153,11 @@ const mealPendingDelete = ref(null)
 const isDeletingMeal = ref(false)
 const deleteMealError = ref('')
 const weekTransitionName = ref('week-slide-next')
+const isSelectionMode = ref(false)
+const selectedMealIds = ref(new Set())
+const isBulkDeleteConfirmOpen = ref(false)
+const isBulkDeleting = ref(false)
+const bulkDeleteError = ref('')
 const weekDays = computed(() => Array.from({ length: 7 }, (_, index) => {
   const date = addDays(visibleWeekStart.value, index)
   const isoDate = toIsoDate(date)
@@ -188,6 +193,97 @@ const calendarDays = computed(() => {
     }
   })
 })
+
+const weekMealIds = computed(() => weekDays.value.flatMap((day) => day.meals.map((meal) => String(meal.id))))
+// visibleMonth (the month-grid state) and visibleWeekStart (the week-view state) only sync when
+// navigating via an explicit date click - paging week-by-week or month-by-month lets them drift apart.
+// Bulk-select must never trust a possibly-stale visibleMonth; derive the target month fresh from
+// whichever view is actually on screen so the button label and the real selection can't disagree.
+const selectionMonthAnchor = computed(() => (currentView.value === 'month' ? visibleMonth.value : visibleWeekStart.value))
+const monthMealIds = computed(() => {
+  const year = selectionMonthAnchor.value.getFullYear()
+  const month = selectionMonthAnchor.value.getMonth()
+  const startIsoDate = toIsoDate(new Date(year, month, 1))
+  const endIsoDate = toIsoDate(new Date(year, month + 1, 0))
+
+  const ids = scheduleStore.scheduledMeals
+    .filter((schedule) => schedule.mealId && schedule.date >= startIsoDate && schedule.date <= endIsoDate)
+    .map((schedule) => String(schedule.mealId))
+
+  return [...new Set(ids)]
+})
+const selectedCount = computed(() => selectedMealIds.value.size)
+const isAllWeekSelected = computed(() => (
+  weekMealIds.value.length > 0 && weekMealIds.value.every((id) => selectedMealIds.value.has(id))
+))
+
+function toggleSelectionMode() {
+  isSelectionMode.value = !isSelectionMode.value
+  if (!isSelectionMode.value) selectedMealIds.value = new Set()
+}
+
+function isMealSelected(meal) {
+  return selectedMealIds.value.has(String(meal.id))
+}
+
+function toggleMealSelected(meal) {
+  const nextSelected = new Set(selectedMealIds.value)
+  const mealId = String(meal.id)
+
+  if (nextSelected.has(mealId)) {
+    nextSelected.delete(mealId)
+  } else {
+    nextSelected.add(mealId)
+  }
+
+  selectedMealIds.value = nextSelected
+}
+
+function toggleSelectAllWeek() {
+  const nextSelected = new Set(selectedMealIds.value)
+
+  if (isAllWeekSelected.value) {
+    for (const id of weekMealIds.value) nextSelected.delete(id)
+  } else {
+    for (const id of weekMealIds.value) nextSelected.add(id)
+  }
+
+  selectedMealIds.value = nextSelected
+}
+
+function selectAllInMonth() {
+  isSelectionMode.value = true
+  selectedMealIds.value = new Set(monthMealIds.value)
+}
+
+function requestBulkDelete() {
+  if (!selectedMealIds.value.size) return
+  bulkDeleteError.value = ''
+  isBulkDeleteConfirmOpen.value = true
+}
+
+function cancelBulkDelete() {
+  if (isBulkDeleting.value) return
+  isBulkDeleteConfirmOpen.value = false
+}
+
+async function confirmBulkDelete() {
+  if (isBulkDeleting.value) return
+
+  isBulkDeleting.value = true
+  bulkDeleteError.value = ''
+
+  try {
+    await mealStore.deleteMeals([...selectedMealIds.value])
+    selectedMealIds.value = new Set()
+    isSelectionMode.value = false
+    isBulkDeleteConfirmOpen.value = false
+  } catch (error) {
+    bulkDeleteError.value = error instanceof Error ? error.message : 'Could not delete meals.'
+  } finally {
+    isBulkDeleting.value = false
+  }
+}
 
 function moveMonth(months) {
   monthTransitionName.value = months > 0 ? 'month-slide-next' : 'month-slide-prev'
@@ -378,8 +474,25 @@ function finishWeekSwipe(event) {
           <ChevronRight :size="20" />
         </button>
         </div>
+        <button class="utility-action" type="button" @click="toggleSelectionMode">
+          <component :is="isSelectionMode ? X : CheckSquare" :size="18" /> {{ isSelectionMode ? 'Cancel' : 'Select' }}
+        </button>
       </div>
     </header>
+
+    <div v-if="isSelectionMode" class="bulk-select-bar">
+      <label class="bulk-select-option">
+        <input type="checkbox" :checked="isAllWeekSelected" @change="toggleSelectAllWeek" />
+        <span>Select all this week</span>
+      </label>
+      <button class="utility-action" type="button" @click="selectAllInMonth">
+        Select all in {{ formatMonthYear(selectionMonthAnchor) }}
+      </button>
+      <span class="bulk-select-count">{{ selectedCount }} selected</span>
+      <button class="secondary-action danger-action" type="button" :disabled="!selectedCount" @click="requestBulkDelete">
+        <Trash2 :size="16" /> Delete Selected
+      </button>
+    </div>
 
     <section
       v-if="currentView === 'week'"
@@ -421,33 +534,41 @@ function finishWeekSwipe(event) {
                   v-for="(meal, index) in day.meals"
                   :key="`${meal.date}-${meal.id}`"
                   class="week-workout-card"
-                  draggable="true"
+                  :class="{ 'selection-mode': isSelectionMode, selected: isMealSelected(meal) }"
+                  :draggable="!isSelectionMode"
                   @dragstart="startMealDrag(meal)"
                   @dragend="finishMealDrag"
                   @dragover.prevent
                   @drop.stop="dropMeal(day, index)"
+                  @click="isSelectionMode && toggleMealSelected(meal)"
                 >
-                                    <GripVertical :size="16" />
+                  <label v-if="isSelectionMode" class="check" @click.stop>
+                    <input type="checkbox" :checked="isMealSelected(meal)" @change="toggleMealSelected(meal)" />
+                    <span aria-hidden="true"></span>
+                  </label>
+                  <GripVertical v-else :size="16" />
                   <div class="week-workout-main">
                     <h2>{{ meal.name }}</h2>
                     <p>{{ meal.mealType }}{{ meal.calories ? ` · ${meal.calories} cal` : '' }}</p>
                   </div>
-                  <button
-                    class="icon-action workout-preview-button"
-                    type="button"
-                    :aria-label="`Preview ${meal.name}`"
-                    @click.stop="previewScheduledMeal(meal)"
-                  >
-                    <Eye :size="16" />
-                  </button>
-                  <button
-                    class="icon-action workout-delete-button danger-icon-button"
-                    type="button"
-                    :aria-label="`Delete ${meal.name}`"
-                    @click.stop="requestDeleteMeal(meal)"
-                  >
-                    <Trash2 :size="16" />
-                  </button>
+                  <template v-if="!isSelectionMode">
+                    <button
+                      class="icon-action workout-preview-button"
+                      type="button"
+                      :aria-label="`Preview ${meal.name}`"
+                      @click.stop="previewScheduledMeal(meal)"
+                    >
+                      <Eye :size="16" />
+                    </button>
+                    <button
+                      class="icon-action workout-delete-button danger-icon-button"
+                      type="button"
+                      :aria-label="`Delete ${meal.name}`"
+                      @click.stop="requestDeleteMeal(meal)"
+                    >
+                      <Trash2 :size="16" />
+                    </button>
+                  </template>
                 </article>
                 <p v-if="!day.meals.length" class="week-day-empty">Drop meal here</p>
               </div>
@@ -550,6 +671,35 @@ function finishWeekSwipe(event) {
       @cancel="cancelDeleteMeal"
       @confirm="confirmDeleteMeal"
     />
+
+    <Teleport to="body">
+      <div v-if="isBulkDeleteConfirmOpen" class="modal-overlay" @click.self="cancelBulkDelete">
+        <div class="modal-card confirm-delete-modal" role="dialog" aria-modal="true" aria-label="Delete selected meals">
+          <header class="confirm-delete-header">
+            <span class="confirm-delete-icon" aria-hidden="true">
+              <AlertTriangle :size="22" />
+            </span>
+            <button class="icon-action" type="button" aria-label="Cancel delete" :disabled="isBulkDeleting" @click="cancelBulkDelete">
+              <X :size="18" />
+            </button>
+          </header>
+
+          <div class="confirm-delete-body">
+            <p class="eyebrow">Delete meals</p>
+            <h3>{{ selectedCount }} meal{{ selectedCount === 1 ? '' : 's' }}</h3>
+            <p>This removes the selected meals from your library and any scheduled days. This cannot be undone.</p>
+            <p v-if="bulkDeleteError" class="form-error">{{ bulkDeleteError }}</p>
+          </div>
+
+          <footer class="modal-footer confirm-delete-actions">
+            <button class="secondary-action" type="button" :disabled="isBulkDeleting" @click="cancelBulkDelete">Cancel</button>
+            <button class="secondary-action danger-action" type="button" :disabled="isBulkDeleting" @click="confirmBulkDelete">
+              <Trash2 :size="18" /> {{ isBulkDeleting ? 'Deleting...' : 'Delete' }}
+            </button>
+          </footer>
+        </div>
+      </div>
+    </Teleport>
 
     <GroceryListModal
       v-if="groceryListModalWeekStart"

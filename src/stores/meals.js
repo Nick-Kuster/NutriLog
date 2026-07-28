@@ -117,6 +117,46 @@ export const useMealStore = defineStore('meals', {
         throw error
       }
     },
+    async deleteMeals(mealIds) {
+      const scheduleStore = useScheduleStore()
+      const resolvedIds = mealIds
+        .map((mealId) => (typeof mealId === 'object' ? mealId?.id : mealId))
+        .filter(Boolean)
+      if (!resolvedIds.length) return true
+
+      const idSet = new Set(resolvedIds.map(String))
+      const previousMeals = [...this.meals]
+      const previousSchedule = [...scheduleStore.schedule]
+      this.meals = this.meals.filter((item) => !idSet.has(String(item.id)))
+      for (const mealId of resolvedIds) {
+        scheduleStore.removeMealFromSchedule(mealId)
+      }
+
+      if (!supabase) return true
+
+      try {
+        const user = await requireSupabaseUser()
+        const { data: deletedRows, error } = await supabase
+          .from('meals')
+          .delete()
+          .eq('user_id', user.id)
+          .in('id', resolvedIds)
+          .select('id')
+
+        if (error) throw error
+        if (!deletedRows?.length) throw new Error('No meals were deleted. They may not belong to the signed-in user, or may already be gone.')
+
+        await Promise.all([
+          this.loadMeals(),
+          scheduleStore.loadSchedule(),
+        ])
+        return true
+      } catch (error) {
+        this.meals = previousMeals
+        scheduleStore.schedule = previousSchedule
+        throw error
+      }
+    },
     async updateMeal(mealId, updates) {
       const index = this.meals.findIndex((item) => String(item.id) === String(mealId))
       if (index === -1) return null
