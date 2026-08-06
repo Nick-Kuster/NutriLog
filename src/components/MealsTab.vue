@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ChevronLeft, ChevronRight, Pencil, Plus, ShoppingCart, Trash2 } from 'lucide-vue-next'
 import { useMealStore } from '../stores/meals'
@@ -67,6 +67,7 @@ const selectedWeekStart = ref(startOfPlanWeek(initialWeekAnchor()))
 const mealPendingDelete = ref(null)
 const isDeletingMeal = ref(false)
 const deleteMealError = ref('')
+const dayLanesEl = ref(null)
 
 const selectedWeekEnd = computed(() => addDays(selectedWeekStart.value, 6))
 
@@ -90,6 +91,20 @@ const weekDays = computed(() => Array.from({ length: 7 }, (_, index) => {
 function moveWeek(days) {
   selectedWeekStart.value = addDays(selectedWeekStart.value, days)
 }
+
+// On mobile, .day-lanes is a horizontally swipeable strip (one day at a
+// time, see @media (max-width: 760px) in style.css) — the week itself
+// already starts on the correct current week, but the scroll position
+// still defaults to the first lane in that grid/flex order rather than
+// today's. On desktop this is a no-op (all 7 lanes fit in the grid, so
+// there's nothing to scroll).
+async function scrollToToday() {
+  await nextTick()
+  dayLanesEl.value?.querySelector('[data-iso-date="' + todayIsoDate() + '"]')
+    ?.scrollIntoView({ behavior: 'auto', inline: 'start', block: 'nearest' })
+}
+
+onMounted(scrollToToday)
 
 function openAddMeal() {
   router.push({ name: 'meal-new', query: { date: toIsoDate(selectedWeekStart.value) } })
@@ -151,12 +166,13 @@ async function confirmDeleteMeal() {
       </div>
     </header>
 
-    <section class="day-lanes" aria-label="Meals for the week">
+    <section ref="dayLanesEl" class="day-lanes" aria-label="Meals for the week">
       <article
         v-for="day in weekDays"
         :key="day.isoDate"
         class="day-lane"
         :class="{ today: day.isToday }"
+        :data-iso-date="day.isoDate"
       >
         <header class="day-lane-header">
           <span>{{ day.weekday }}</span>
