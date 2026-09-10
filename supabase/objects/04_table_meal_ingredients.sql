@@ -3,6 +3,7 @@ create table if not exists public.meal_ingredients (
   meal_id uuid not null references public.meals(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
+  walmart_url text not null default '',
   quantity numeric not null default 1 check (quantity >= 0),
   unit text not null default '',
   category text not null default 'Other',

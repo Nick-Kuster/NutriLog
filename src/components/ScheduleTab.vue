@@ -138,7 +138,7 @@ const previewMeal = computed(() => {
   if (!meal) return null
 
   const scheduledMeal = scheduleStore.scheduledMeals.find((schedule) => (
-    String(schedule.mealId) === String(meal.id)
+    String(schedule.mealId) === String(meal.id) && schedule.date === selectedDate.value
   ))
 
   return {
@@ -323,6 +323,7 @@ function previewScheduledMeal(meal) {
     query: {
       ...route.query,
       previewMeal: meal.id,
+      date: meal.date,
     },
   })
 }
@@ -651,7 +652,7 @@ function finishMonthSwipe(event) {
               <span>{{ meal.ingredients.length }} ingredients</span>
             </div>
                         <div class="day-workout-actions">
-              <RouterLink class="secondary-action" :to="{ name: 'meal', params: { mealId: meal.id } }" @click.stop>
+              <RouterLink class="secondary-action" :to="{ name: 'meal', params: { mealId: meal.id }, query: { date: meal.date } }" @click.stop>
                 Open meal
               </RouterLink>
               <button class="utility-action" type="button" @click="previewScheduledMeal(meal)">
@@ -780,7 +781,7 @@ function finishMonthSwipe(event) {
             <button class="secondary-action danger-action" type="button" @click="requestDeleteMeal(previewMeal)">
               <Trash2 :size="18" /> Delete
             </button>
-            <RouterLink class="primary-action workout-open-button" :to="{ name: 'meal', params: { mealId: previewMeal.id } }" aria-label="Open meal">
+            <RouterLink class="primary-action workout-open-button" :to="{ name: 'meal', params: { mealId: previewMeal.id }, query: { date: previewMeal.date } }" aria-label="Open meal">
               <Play :size="18" />
             </RouterLink>
           </footer>

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Flame, Pencil, Trash2 } from 'lucide-vue-next'
 import { useMealStore } from '../stores/meals'
 import { useScheduleStore } from '../stores/schedule'
@@ -11,13 +11,18 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const route = useRoute()
 const mealStore = useMealStore()
 const scheduleStore = useScheduleStore()
 
 const meal = computed(() => mealStore.mealById(props.mealId))
-const scheduledDate = computed(() => scheduleStore.scheduledMeals.find((schedule) => (
-  String(schedule.mealId) === String(props.mealId)
-))?.date ?? '')
+const occurrences = computed(() => scheduleStore.scheduledMeals.filter((schedule) => String(schedule.mealId) === String(props.mealId)))
+const occurrence = computed(() => route.query.date
+  ? occurrences.value.find((schedule) => schedule.date === route.query.date)
+  : occurrences.value.length === 1 ? occurrences.value[0] : null)
+const scheduledDate = computed(() => occurrence.value?.date ?? '')
+const completionError = ref('')
+const savingCompletion = ref(false)
 
 const isDeleting = ref(false)
 const deleteError = ref('')
@@ -47,7 +52,18 @@ function editMeal() {
 }
 
 async function toggleCompleted(event) {
-  await mealStore.setMealCompleted(props.mealId, event.target.checked)
+  const checked = event.target.checked
+  event.target.checked = occurrence.value?.isCompleted === true
+  if (!occurrence.value) return
+  savingCompletion.value = true
+  completionError.value = ''
+  try {
+    await scheduleStore.setScheduledMealCompleted(scheduledDate.value, props.mealId, checked)
+  } catch (error) {
+    completionError.value = 'Could not save completion. ' + error.message
+  } finally {
+    savingCompletion.value = false
+  }
 }
 
 function requestDelete() {
@@ -162,9 +178,11 @@ async function confirmDelete() {
       </div>
     </section>
 
+    <p v-if="completionError" class="form-error" role="alert">{{ completionError }}</p>
+    <p v-if="!occurrence" class="form-section-hint">Open this meal from a specific day to mark it eaten.</p>
     <footer class="modal-footer meal-detail-actions">
-      <label class="secondary-action">
-        <input type="checkbox" :checked="meal.status === 'completed'" @change="toggleCompleted" />
+      <label v-if="occurrence" class="secondary-action">
+        <input type="checkbox" :checked="occurrence.isCompleted === true" :disabled="savingCompletion" @change="toggleCompleted" />
         <Check :size="18" /> Eaten
       </label>
       <button class="secondary-action" type="button" @click="editMeal"><Pencil :size="18" /> Edit</button>

@@ -1,5 +1,6 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import WalmartCart from './WalmartCart.vue'
 import { ChevronDown, ChevronRight, ShoppingCart, Trash2 } from 'lucide-vue-next'
 import { useGroceryStore } from '../stores/grocery'
 
@@ -9,6 +10,10 @@ const props = defineProps({
 })
 
 const groceryStore = useGroceryStore()
+const walmartItems = computed(() => props.groups.flatMap((group) => [
+  ...group.auto.filter((item) => !groceryStore.isChecked(item.itemKey)).map((item) => ({ ...item, reviewKey: `auto-${item.itemKey}` })),
+  ...group.extra.filter((item) => !item.isChecked).map((item) => ({ ...item, reviewKey: `extra-${item.id}` })),
+]))
 const expandedCategories = ref(new Set())
 const hasInitializedExpanded = ref(false)
 
@@ -35,6 +40,7 @@ function toggleCategory(category) {
 
 <template>
   <section class="grocery-list" aria-label="Grocery list by category">
+    <WalmartCart :items="walmartItems" />
     <article v-for="group in groups" :key="group.category" class="grocery-category">
       <button
         type="button"

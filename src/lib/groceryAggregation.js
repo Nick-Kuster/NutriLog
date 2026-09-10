@@ -11,12 +11,14 @@ export function aggregateGroceryItems(meals) {
       const existing = itemsByKey[itemKey]
 
       if (existing) {
+        if (existing.walmartUrl !== (ingredient.walmartUrl || '')) existing.walmartUrl = ''
         existing.quantity += ingredient.quantity ?? 0
         if (!existing.meals.includes(meal.name)) existing.meals.push(meal.name)
       } else {
         itemsByKey[itemKey] = {
           itemKey,
           name: ingredient.name,
+          walmartUrl: ingredient.walmartUrl || '',
           quantity: ingredient.quantity ?? 0,
           unit: ingredient.unit ?? '',
           category: ingredient.category || 'Other',

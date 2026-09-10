@@ -3,9 +3,14 @@ import { computed, ref } from 'vue'
 import { Clipboard, Download, FileJson, LoaderCircle, Upload, X } from 'lucide-vue-next'
 import { useMealStore } from '../stores/meals'
 import { useScheduleStore } from '../stores/schedule'
+import { useGroceryStore } from '../stores/grocery'
+import { useUserPreferencesStore } from '../stores/userPreferences'
+import { importedOwnedGroceries } from '../lib/ownedGroceries'
 
 const scheduleStore = useScheduleStore()
 const mealStore = useMealStore()
+const groceryStore = useGroceryStore()
+const preferencesStore = useUserPreferencesStore()
 
 const importFileInput = ref(null)
 const importMessage = ref('')
@@ -162,6 +167,7 @@ async function runImport(data, successMessage) {
 
 async function importMealData(data) {
   validateImportData(data)
+  const ownedItems = importedOwnedGroceries(data, preferencesStore.weekStartsOn)
 
   const returnedMealIdMap = await mealStore.importMeals(data.meals)
   const importedMealIdMap = hasMealIdMappings(returnedMealIdMap)
@@ -178,7 +184,12 @@ async function importMealData(data) {
       throw new Error('Could not map imported meal ' + item.mealId + ' to a saved meal')
     }
 
-    await scheduleStore.scheduleMeal(item.date, mappedMealId)
+    await scheduleStore.scheduleMeal(item.date, mappedMealId, item.isCompleted === true)
+  }
+  try {
+    await groceryStore.applyImportedOwnership(ownedItems)
+  } catch (error) {
+    throw new Error('Meals and schedule were imported, but pantry checkoffs could not be saved. Check off owned groceries manually. ' + error.message)
   }
 }
 
@@ -220,10 +231,13 @@ function buildWeekTemplate() {
   return {
     schemaVersion: 1,
     llmInstructions: {
+      completion: 'Completion belongs to each schedule entry: use isCompleted: false for new plans, or true only for that specific date when confirmed eaten. Repeated meals share a mealId but have independent isCompleted values. The legacy meal.status field does not mark scheduled meals eaten.',
+      alreadyOwned: 'Each ingredient may include alreadyOwned: true or false (a JSON boolean, never a string). Set true only when the user confirms they have enough for ALL uses of that ingredient in that shopping week. Photos can identify items, but do not assume hidden quantities; ask if needed and use false when uncertain or only partly stocked. Use consistent names and units and the same ownership flag for the ingredient across meals in that week. Keep full recipe quantities unchanged. All occurrences must be true for the combined grocery item to be checked off. These hints apply only to weeks in this import, not future reuse of a recipe. Omit the field or use false for items that need buying. NutriLog preserves existing manual grocery checkoffs.',
       general: 'Generate a realistic weekly meal plan tailored to the goals, dietary preferences, calorie/macro targets, and household size the user describes. The example meals and schedule below exist only to demonstrate the required JSON shape - replace them entirely with plan-appropriate content rather than reusing their names or ingredients.',
       mealStructure: 'A meal has: id (unique number), name, mealType ("Breakfast", "Lunch", "Dinner", "Snack", or "Meal"), servings (integer), prepMinutes, status ("planned" or "completed"), notes, optional per-serving nutrition (calories, proteinG, carbsG, fatG), an ordered ingredients array, and an ordered instructions array.',
       ingredientFields: 'Each ingredient needs a unique id, a name, a quantity (number), a unit (free text, e.g. "cup", "g", "oz", "clove" - use "" if the ingredient does not need one, like "2 eggs"), and a category used to group the grocery list. category must be one of: Produce, Protein, Dairy & Eggs, Grains & Bread, Pantry, Frozen, Condiments & Spices, Other.',
       instructionFields: 'instructions is an array of sections, each with a heading (string, use "" if the recipe does not need named sections) and a steps array of strings. Every step must be a real, actionable cooking instruction (specific temperatures, times, techniques) - never a placeholder like "cook until done". Simple meals can use a single section with heading "" and a short steps list; multi-stage recipes (e.g. a sauce plus a main) should use one section per stage with a short heading like "Marinade" or "Sauce" so the steps stay grouped. Every meal should have at least one instructions section unless it is truly assembly-only (e.g. a pre-made snack) - the notes field is for general remarks, not for the actual steps.',
+      walmartProducts: 'For each ingredient, optionally include walmartUrl (string). Browse Walmart.com and verify the actual product matches the ingredient, including its variant and package size. Use the full https://www.walmart.com/ip/... product URL containing its numeric item ID. Never invent URLs or IDs or use search-result URLs. If browsing is unavailable or a match cannot be verified, use walmartUrl: "". Reuse the same verified product URL for the same ingredient across meals. Keep recipe quantity and unit unchanged: these are ingredient amounts, not Walmart package counts. The shopper reviews package counts before adding products to Walmart. Do not claim local stock or prices without checking them.',
       scheduleRules: 'schedule is an array covering every day of the plan, one entry per date (YYYY-MM-DD, chronological, no gaps), each with a mealId. A single day can have multiple schedule entries (e.g. breakfast, lunch, dinner) - repeat the date with a different mealId for each. Use mealId: null only for days intentionally left open. Every non-null mealId must match an id in the meals array, and every meal id should be referenced by at least one schedule entry.',
       outputFormat: 'Return only the raw JSON object described by this shape - no markdown code fences, no leading or trailing commentary, and no comments inside the JSON. The response must be valid JSON that can be parsed directly by JSON.parse.',
     },
@@ -241,7 +255,7 @@ function buildWeekTemplate() {
         status: 'planned',
         notes: '',
         ingredients: [
-          { id: 'greek-yogurt', name: 'Greek yogurt', quantity: 1, unit: 'cup', category: 'Dairy & Eggs' },
+          { id: 'greek-yogurt', name: 'Greek yogurt', quantity: 1, unit: 'cup', category: 'Dairy & Eggs', alreadyOwned: false },
           { id: 'blueberries', name: 'Blueberries', quantity: 0.5, unit: 'cup', category: 'Produce' },
           { id: 'granola', name: 'Granola', quantity: 0.25, unit: 'cup', category: 'Pantry' },
         ],
@@ -329,7 +343,7 @@ function downloadJson(data, filename) {
           <FileJson :size="24" />
           <div>
             <h2>ChatGPT template</h2>
-            <p>Copy this JSON shape into a ChatGPT conversation and ask it to fill in a week of meals and a schedule that matches it.</p>
+            <p>Copy this JSON shape into your AI conversation to generate meals and a schedule. Share pantry photos and confirm quantities; ingredients marked alreadyOwned will be checked off for the imported week. You can uncheck them in Groceries.</p>
           </div>
         </div>
 

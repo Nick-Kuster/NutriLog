@@ -6,16 +6,35 @@ export const useGroceryStore = defineStore('grocery', {
     weekStart: '',
     extraItems: [],
     checkedKeys: {},
+    localCheckedWeeks: {},
     isLoading: false,
     error: '',
   }),
   actions: {
+    async applyImportedOwnership(items) {
+      if (!items.length) return
+      if (supabase) {
+        const user = await requireSupabaseUser()
+        const { error } = await supabase.from('grocery_checkoffs').upsert(
+          items.map(({ weekStart, itemKey }) => ({ user_id: user.id, week_start: weekStart, item_key: itemKey, is_checked: true })),
+          { onConflict: 'user_id,week_start,item_key', ignoreDuplicates: true },
+        )
+        if (error) throw error
+        if (this.weekStart) await this.loadWeek(this.weekStart)
+        return
+      }
+      for (const { weekStart, itemKey } of items) {
+        const checked = this.localCheckedWeeks[weekStart] ?? {}
+        this.localCheckedWeeks[weekStart] = { ...checked, [itemKey]: checked[itemKey] ?? true }
+      }
+      this.checkedKeys = this.localCheckedWeeks[this.weekStart] ?? {}
+    },
     async loadWeek(weekStart) {
       this.weekStart = weekStart
 
       if (!supabase) {
         this.extraItems = []
-        this.checkedKeys = {}
+        this.checkedKeys = this.localCheckedWeeks[weekStart] ?? {}
         return
       }
 
@@ -34,7 +53,7 @@ export const useGroceryStore = defineStore('grocery', {
 
         this.extraItems = (extraItemsResult.data ?? []).map(mapExtraItemFromRow)
         this.checkedKeys = Object.fromEntries(
-          (checkoffsResult.data ?? []).map((row) => [row.item_key, true]),
+          (checkoffsResult.data ?? []).map((row) => [row.item_key, row.is_checked]),
         )
       } catch (error) {
         this.error = error instanceof Error ? error.message : 'Could not load grocery list.'
@@ -48,20 +67,18 @@ export const useGroceryStore = defineStore('grocery', {
     },
     async setChecked(itemKey, checked) {
       this.checkedKeys = { ...this.checkedKeys, [itemKey]: checked }
-      if (!checked) {
-        const { [itemKey]: _removed, ...rest } = this.checkedKeys
-        this.checkedKeys = rest
+      if (!supabase) {
+        this.localCheckedWeeks[this.weekStart] = this.checkedKeys
+        return
       }
-
-      if (!supabase) return
 
       const user = await requireSupabaseUser()
 
-      if (checked) {
+      {
         const { error } = await supabase
           .from('grocery_checkoffs')
           .upsert(
-            { user_id: user.id, week_start: this.weekStart, item_key: itemKey, is_checked: true },
+            { user_id: user.id, week_start: this.weekStart, item_key: itemKey, is_checked: checked },
             { onConflict: 'user_id,week_start,item_key' },
           )
 
@@ -69,14 +86,6 @@ export const useGroceryStore = defineStore('grocery', {
         return
       }
 
-      const { error } = await supabase
-        .from('grocery_checkoffs')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('week_start', this.weekStart)
-        .eq('item_key', itemKey)
-
-      if (error) throw error
     },
     async addExtraItem(item) {
       const localItem = {

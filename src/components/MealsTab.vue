@@ -16,7 +16,7 @@ const router = useRouter()
 const allScheduledMeals = computed(() => scheduleStore.scheduledMeals
   .map((schedule) => {
     const meal = mealStore.mealById(schedule.mealId)
-    return meal ? { ...meal, date: schedule.date } : null
+    return meal ? { ...meal, date: schedule.date, isCompleted: schedule.isCompleted === true } : null
   })
   .filter(Boolean))
 
@@ -67,6 +67,21 @@ const selectedWeekStart = ref(startOfPlanWeek(initialWeekAnchor()))
 const mealPendingDelete = ref(null)
 const isDeletingMeal = ref(false)
 const deleteMealError = ref('')
+const completionError = ref('')
+const savingCompletion = ref(false)
+async function toggleCompleted(meal, event) {
+  const checked = event.target.checked
+  event.target.checked = meal.isCompleted
+  completionError.value = ''
+  savingCompletion.value = true
+  try {
+    await scheduleStore.setScheduledMealCompleted(meal.date, meal.id, checked)
+  } catch (error) {
+    completionError.value = 'Could not save completion. ' + error.message
+  } finally {
+    savingCompletion.value = false
+  }
+}
 const dayLanesEl = ref(null)
 
 const selectedWeekEnd = computed(() => addDays(selectedWeekStart.value, 6))
@@ -166,6 +181,7 @@ async function confirmDeleteMeal() {
       </div>
     </header>
 
+    <p v-if="completionError" class="form-error" role="alert">{{ completionError }}</p>
     <section ref="dayLanesEl" class="day-lanes" aria-label="Meals for the week">
       <article
         v-for="day in weekDays"
@@ -184,18 +200,20 @@ async function confirmDeleteMeal() {
             v-for="meal in day.meals"
             :key="`${meal.date}-${meal.id}`"
             class="day-lane-meal-card"
-            :class="{ completed: meal.status === 'completed' }"
+            :class="{ completed: meal.isCompleted }"
           >
             <div class="day-lane-meal-top">
               <label class="check">
                 <input
-                  :checked="meal.status === 'completed'"
+                  :checked="meal.isCompleted"
+                  :disabled="savingCompletion"
+                  :aria-label="`Mark ${meal.name} on ${meal.date} eaten`"
                   type="checkbox"
-                  @change="mealStore.setMealCompleted(meal.id, $event.target.checked)"
+                  @change="toggleCompleted(meal, $event)"
                 />
                 <span aria-hidden="true"></span>
               </label>
-              <RouterLink class="day-lane-meal-link" :to="{ name: 'meal', params: { mealId: meal.id } }">
+              <RouterLink class="day-lane-meal-link" :to="{ name: 'meal', params: { mealId: meal.id }, query: { date: meal.date } }">
                 <strong>{{ meal.name }}</strong>
                 <span>{{ meal.mealType }}</span>
               </RouterLink>

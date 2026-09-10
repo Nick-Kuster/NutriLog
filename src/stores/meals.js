@@ -170,24 +170,14 @@ export const useMealStore = defineStore('meals', {
       ]
       return savedMeal
     },
-    async setMealCompleted(mealId, completed) {
-      const meal = this.meals.find((item) => String(item.id) === String(mealId))
-      if (!meal) return
-
-      meal.status = completed ? 'completed' : 'planned'
-      if (!supabase) return
-
-      const { error } = await supabase
-        .from('meals')
-        .update({ status: meal.status })
-        .eq('id', meal.id)
-
-      if (error) throw error
-    },
     async saveMealTree(meal) {
       if (!supabase) return meal
 
       const user = await requireSupabaseUser()
+      if (meal.ingredients?.some((ingredient) => ingredient.walmartUrl)) {
+        const { error } = await supabase.from('meal_ingredients').select('walmart_url').limit(0)
+        if (error) throw new Error('Could not save Walmart product links. Apply the Walmart product links database migration and try again. ' + error.message)
+      }
       const existingId = isUuid(meal.id) ? meal.id : undefined
       const { data: savedMealRow, error: mealError } = await supabase
         .from('meals')
@@ -263,6 +253,7 @@ function mapIngredientFromRow(row) {
   return {
     id: row.id,
     name: row.name,
+    walmartUrl: row.walmart_url ?? '',
     quantity: Number(row.quantity ?? 1),
     unit: row.unit ?? '',
     category: row.category ?? 'Other',
@@ -292,6 +283,7 @@ function mapIngredientToRow(ingredient, mealId, userId, sortOrder) {
     meal_id: mealId,
     user_id: userId,
     name: ingredient.name,
+    ...(ingredient.walmartUrl ? { walmart_url: ingredient.walmartUrl } : {}),
     quantity: parseNullableNumber(ingredient.quantity) ?? 1,
     unit: ingredient.unit ?? '',
     category: ingredient.category ?? 'Other',

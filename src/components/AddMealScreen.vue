@@ -96,6 +96,7 @@ function createIngredientDraftFromIngredient(ingredient) {
   return {
     id: makeId(),
     name: ingredient.name ?? '',
+    walmartUrl: ingredient.walmartUrl ?? '',
     quantity: ingredient.quantity ?? 1,
     unit: ingredient.unit ?? '',
     category: ingredient.category ?? 'Other',
@@ -160,6 +161,7 @@ function mapIngredientDraft(ingredientDraft, index) {
   return {
     id: makeId(),
     name: ingredientDraft.name.trim() || `Ingredient ${index + 1}`,
+    walmartUrl: ingredientDraft.walmartUrl?.trim() || '',
     quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
     unit: ingredientDraft.unit.trim(),
     category: ingredientDraft.category || 'Other',
@@ -168,7 +170,7 @@ function mapIngredientDraft(ingredientDraft, index) {
 
 function goBack() {
   if (isEditing.value) {
-    router.push({ name: 'meal', params: { mealId: props.mealId } })
+    router.push({ name: 'meal', params: { mealId: props.mealId }, query: { date: props.scheduledDate } })
   } else {
     router.push({ name: 'meals' })
   }
@@ -207,7 +209,7 @@ async function saveMeal() {
 
     if (isEditing.value) {
       await scheduleStore.updateScheduledMeal(props.scheduledDate, savedMeal.id, scheduledDate)
-      router.push({ name: 'meal', params: { mealId: savedMeal.id } })
+      router.push({ name: 'meal', params: { mealId: savedMeal.id }, query: { date: scheduledDate } })
     } else {
       await scheduleStore.scheduleMeal(scheduledDate, savedMeal.id)
       router.push({ name: 'meals', query: { date: scheduledDate } })
@@ -300,6 +302,7 @@ async function saveMeal() {
             </div>
 
             <div class="ingredient-draft-detail">
+              <input v-model="ingredient.walmartUrl" type="url" aria-label="Walmart product link (optional)" placeholder="Walmart product link (optional)" />
               <input v-model.number="ingredient.quantity" type="number" min="0" step="0.25" aria-label="Quantity" placeholder="Qty" />
               <input v-model="ingredient.unit" type="text" aria-label="Unit" placeholder="unit (cup, g, oz)" />
               <select v-model="ingredient.category" aria-label="Grocery category">

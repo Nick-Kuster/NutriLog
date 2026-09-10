@@ -4,6 +4,7 @@ create table if not exists public.scheduled_meals (
   meal_id uuid not null references public.meals(id) on delete cascade,
   scheduled_date date not null,
   sort_order integer not null default 0,
+  is_completed boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, meal_id, scheduled_date)

@@ -11,6 +11,19 @@ export const useScheduleStore = defineStore('schedule', {
     scheduledMeals: (state) => state.schedule,
   },
   actions: {
+    async setScheduledMealCompleted(date, mealId, completed) {
+      const matches = (item) => item.date === date && String(item.mealId) === String(mealId)
+      if (!this.schedule.some(matches)) throw new Error('Scheduled meal not found.')
+      if (supabase) {
+        const user = await requireSupabaseUser()
+        const { data, error } = await supabase.from('scheduled_meals')
+          .update({ is_completed: completed })
+          .eq('user_id', user.id).eq('scheduled_date', date).eq('meal_id', mealId)
+          .select('id').single()
+        if (error || !data) throw new Error(error?.message || 'Could not save completion.')
+      }
+      this.schedule = this.schedule.map((item) => matches(item) ? { ...item, isCompleted: completed } : item)
+    },
     async loadSchedule() {
       if (!supabase) return
 
@@ -39,6 +52,8 @@ export const useScheduleStore = defineStore('schedule', {
       if (!supabase) return
 
       const user = await requireSupabaseUser()
+      const { error: schemaError } = await supabase.from('scheduled_meals').select('is_completed').limit(0)
+      if (schemaError) throw new Error('Apply the scheduled meal completion migration before changing the schedule. ' + schemaError.message)
       const { error: deleteError } = await supabase.from('scheduled_meals').delete().eq('user_id', user.id)
       if (deleteError) throw deleteError
 
@@ -53,9 +68,9 @@ export const useScheduleStore = defineStore('schedule', {
     removeMealFromSchedule(mealId) {
       this.schedule = normalizeScheduleOrder(this.schedule.filter((item) => String(item.mealId) !== String(mealId)))
     },
-    async scheduleMeal(date, mealId) {
+    async scheduleMeal(date, mealId, isCompleted = false) {
       const order = this.schedule.filter((item) => item.date === date).length
-      const localItem = { date, mealId, order }
+      const localItem = { date, mealId, order, isCompleted: isCompleted === true }
       this.schedule = normalizeScheduleOrder([...this.schedule, localItem])
 
       if (!supabase) return localItem
@@ -70,7 +85,7 @@ export const useScheduleStore = defineStore('schedule', {
       if (error) throw error
       const savedItem = mapScheduleFromRow(data)
       this.schedule = normalizeScheduleOrder(this.schedule.map((item) => (
-        item === localItem ? savedItem : item
+        item.date === date && String(item.mealId) === String(mealId) ? savedItem : item
       )))
       return savedItem
     },
@@ -162,6 +177,7 @@ function mapScheduleFromRow(row) {
     date: row.scheduled_date,
     mealId: row.meal_id,
     order: row.sort_order ?? 0,
+    isCompleted: row.is_completed === true,
   }
 }
 
@@ -172,5 +188,6 @@ function mapScheduleToRow(item, userId) {
     meal_id: item.mealId,
     scheduled_date: item.date,
     sort_order: item.order ?? 0,
+    is_completed: item.isCompleted === true,
   }
 }
