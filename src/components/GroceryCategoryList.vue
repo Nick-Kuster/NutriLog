@@ -40,7 +40,7 @@ function toggleCategory(category) {
 
 <template>
   <section class="grocery-list" aria-label="Grocery list by category">
-    <WalmartCart :items="walmartItems" />
+    <WalmartCart :key="groceryStore.weekStart" :items="walmartItems" />
     <article v-for="group in groups" :key="group.category" class="grocery-category">
       <button
         type="button"

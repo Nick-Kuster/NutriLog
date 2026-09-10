@@ -20,3 +20,27 @@ export function walmartCartUrl(products) {
   url.searchParams.set('items', [...quantities].map(([id, quantity]) => `${id}_${quantity}`).join(','))
   return url.toString()
 }
+
+export function walmartReviewRows(items, previous = []) {
+  const byKey = new Map(previous.map((row) => [row.reviewKey, row]))
+  return items.map((item) => {
+    const existing = byKey.get(item.reviewKey)
+    return {
+      ...item,
+      url: existing && existing.url !== (existing.walmartUrl || '') ? existing.url : item.walmartUrl || '',
+      packages: existing?.packages ?? 1,
+      selected: existing?.selected ?? true,
+    }
+  })
+}
+
+export function walmartReviewState(rows) {
+  const selected = rows.filter((row) => row.selected)
+  const missing = selected.filter((row) => !walmartItemId(row.url))
+  const matched = selected.filter((row) => walmartItemId(row.url))
+  const invalidCounts = matched.filter((row) => !Number.isSafeInteger(Number(row.packages)) || Number(row.packages) < 1)
+  return {
+    selected, missing, matched, invalidCounts,
+    url: walmartCartUrl(matched.map((row) => ({ url: row.url, quantity: row.packages }))),
+  }
+}

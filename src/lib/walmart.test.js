@@ -1,7 +1,36 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { walmartCartUrl, walmartItemId } from './walmart.js'
+import { walmartCartUrl, walmartItemId, walmartReviewRows, walmartReviewState } from './walmart.js'
 import { aggregateGroceryItems } from './groceryAggregation.js'
+
+test('all needed groceries start selected, including missing product links', () => {
+  const rows = walmartReviewRows([
+    { reviewKey: 'rice', name: 'Rice', walmartUrl: 'https://www.walmart.com/ip/123' },
+    { reviewKey: 'milk', name: 'Milk' },
+  ])
+  assert.ok(rows.every((row) => row.selected))
+  const cart = walmartReviewState(rows)
+  assert.equal(cart.selected.length, 2)
+  assert.equal(cart.missing[0].name, 'Milk')
+  assert.equal(new URL(cart.url).searchParams.get('items'), '123_1')
+  rows[1].url = 'https://www.walmart.com/ip/456'
+  assert.equal(walmartReviewState(rows).matched.length, 2)
+  rows[1].packages = 0
+  assert.equal(walmartReviewState(rows).url, '')
+  assert.equal(walmartReviewState(rows).invalidCounts.length, 1)
+})
+
+test('refreshing groceries retains user edits and removes checked items from review', () => {
+  const items = [{ reviewKey: 'rice' }, { reviewKey: 'milk' }]
+  const rows = walmartReviewRows(items)
+  Object.assign(rows[0], { url: 'https://www.walmart.com/ip/123', packages: 3, selected: false })
+  const next = walmartReviewRows([items[0], { reviewKey: 'eggs' }], rows)
+  assert.equal(next[0].packages, 3)
+  assert.equal(next[0].selected, false)
+  assert.equal(next[0].url, rows[0].url)
+  assert.equal(next[1].selected, true)
+  assert.ok(!next.some((row) => row.reviewKey === 'milk'))
+})
 
 test('accept only Walmart product URLs, not lookalike domains or search URLs', () => {
   assert.equal(walmartItemId('https://www.walmart.com/ip/Rice/123?foo=bar'), '123')

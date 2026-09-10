@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-vue-next'
 import { aggregateGroceryItems, groupGroceryItemsByCategory } from '../lib/groceryAggregation'
@@ -118,9 +118,6 @@ watch(weekStartIso, (weekStart) => {
   groceryStore.loadWeek(weekStart)
 }, { immediate: true })
 
-onMounted(() => {
-  groceryStore.loadWeek(weekStartIso.value)
-})
 </script>
 
 <template>
